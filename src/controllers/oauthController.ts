@@ -1,0 +1,144 @@
+import { Request, Response } from "express";
+import AirtableAuthService from "../services/AirtableAuthService";
+import {
+  AuthorizeRequest,
+  AuthorizeResponse,
+  OAuthCallbackQuery,
+  RefreshTokenRequest,
+  RefreshTokenResponse,
+} from "../types";
+import {
+  sendErrorResponse,
+  sendSuccessResponse,
+  ValidationError,
+} from "../utils/errors";
+
+/**
+ * POST /api/airtable/oauth/authorize
+ * Initiates OAuth flow
+ */
+export async function authorize(
+  req: Request<unknown, unknown, AuthorizeRequest>,
+  res: Response
+): Promise<Response> {
+  try {
+    const { userId } = req.body;
+
+    if (!userId) {
+      throw new ValidationError("userId is required");
+    }
+
+    const authUrl = await AirtableAuthService.initiateOAuth(userId);
+
+    const response: AuthorizeResponse = { authUrl };
+
+    return sendSuccessResponse(res, response);
+  } catch (error) {
+    return sendErrorResponse(res, error);
+  }
+}
+
+/**
+ * GET /api/airtable/oauth/callback
+ * Handles OAuth callback and redirects to frontend
+ */
+export async function callback(
+  req: Request<unknown, unknown, unknown, OAuthCallbackQuery>,
+  res: Response
+): Promise<void> {
+  try {
+    const { code, state, error, error_description } = req.query;
+
+    // Handle OAuth error from Airtable
+    if (error) {
+      const errorMsg = error_description || error;
+      return res.redirect(
+        `http://localhost:4200/oauth/callback?error=${encodeURIComponent(
+          errorMsg
+        )}`
+      );
+    }
+
+    if (!code || !state) {
+      return res.redirect(
+        `http://localhost:4200/oauth/callback?error=${encodeURIComponent(
+          "Missing code or state parameter"
+        )}`
+      );
+    }
+
+    // Handle the OAuth callback
+    await AirtableAuthService.handleCallback(code as string, state as string);
+
+    // Redirect to frontend success page
+    res.redirect(
+      `http://localhost:4200/oauth/callback?success=true&state=${state}`
+    );
+  } catch (error) {
+    const errorMsg =
+      error instanceof Error ? error.message : "Authentication failed";
+    res.redirect(
+      `http://localhost:4200/oauth/callback?error=${encodeURIComponent(
+        errorMsg
+      )}`
+    );
+  }
+}
+
+/**
+ * POST /api/airtable/oauth/refresh
+ * Refreshes access token
+ */
+export async function refreshToken(
+  req: Request<unknown, unknown, RefreshTokenRequest>,
+  res: Response
+): Promise<Response> {
+  try {
+    const { userId } = req.body;
+
+    if (!userId) {
+      throw new ValidationError("userId is required");
+    }
+
+    const accessToken = await AirtableAuthService.refreshAccessToken(userId);
+
+    const response: RefreshTokenResponse = {
+      success: true,
+      accessToken,
+    };
+
+    return sendSuccessResponse(res, response);
+  } catch (error) {
+    return sendErrorResponse(res, error);
+  }
+}
+
+export default {
+  authorize,
+  callback,
+  refreshToken,
+  validate,
+};
+
+/**
+ * GET /api/airtable/oauth/validate
+ * Validates if user has valid authentication
+ */
+export async function validate(req: Request, res: Response): Promise<Response> {
+  try {
+    const { userId } = req.query;
+
+    if (!userId || typeof userId !== "string") {
+      throw new ValidationError("userId is required");
+    }
+
+    const hasConnection = await AirtableAuthService.hasValidConnection(userId);
+
+    return sendSuccessResponse(res, {
+      isAuthenticated: hasConnection,
+      userId,
+    });
+  } catch (error) {
+    return sendErrorResponse(res, error);
+  }
+}

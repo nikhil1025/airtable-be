@@ -1,0 +1,46 @@
+{
+    "name": "airtable-integration-backend",
+    "version": "1.0.0",
+    "description": "Backend service for Airtable integration with OAuth, data sync, and revision history scraping",
+    "main": "dist/server.js",
+    "scripts": {
+        "dev": "nodemon src/server.ts",
+        "dev:cluster": "nodemon src/server.cluster.ts",
+        "build": "tsc",
+        "start": "node dist/server.js",
+        "start:cluster": "node dist/server.cluster.js",
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "keywords": [
+        "airtable",
+        "oauth",
+        "mongodb",
+        "express",
+        "typescript"
+    ],
+    "author": "",
+    "license": "ISC",
+    "engines": {
+        "node": ">=22.0.0"
+    },
+    "dependencies": {
+        "axios": "^1.6.2",
+        "cheerio": "^1.0.0-rc.12",
+        "cookie": "^0.6.0",
+        "cors": "^2.8.5",
+        "dotenv": "^16.3.1",
+        "express": "^4.18.2",
+        "express-rate-limit": "^7.1.5",
+        "helmet": "^7.1.0",
+        "mongoose": "^8.0.3"
+    },
+    "devDependencies": {
+        "@types/cookie": "^0.6.0",
+        "@types/cors": "^2.8.17",
+        "@types/express": "^4.17.21",
+        "@types/node": "^20.10.5",
+        "nodemon": "^3.0.2",
+        "ts-node": "^10.9.2",
+        "typescript": "^5.3.3"
+    }
+}
