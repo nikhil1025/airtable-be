@@ -108,8 +108,63 @@ export async function getRevisionHistory(
   }
 }
 
+/**
+ * POST /api/airtable/revision-history/fetch-api
+ * Fetches revision history for a single ticket using the API endpoint
+ */
+export async function fetchRevisionHistoryAPI(
+  req: Request<unknown, unknown, { userId: string; recordId: string }>,
+  res: Response
+): Promise<Response> {
+  try {
+    const { userId, recordId } = req.body;
+
+    if (!userId || !recordId) {
+      throw new ValidationError("userId and recordId are required");
+    }
+
+    const result = await RevisionHistoryService.fetchRevisionHistoryAPI(
+      userId,
+      recordId
+    );
+
+    return sendSuccessResponse(res, result);
+  } catch (error) {
+    return sendErrorResponse(res, error);
+  }
+}
+
+/**
+ * POST /api/airtable/revision-history/sync-api
+ * Syncs revision history for all tickets using the API endpoint
+ */
+export async function syncRevisionHistoryAPI(
+  req: Request<unknown, unknown, SyncRevisionHistoryRequest>,
+  res: Response
+): Promise<Response> {
+  try {
+    const { userId, baseId, tableId } = req.body;
+
+    if (!userId) {
+      throw new ValidationError("userId is required");
+    }
+
+    const result = await RevisionHistoryService.syncRevisionHistoryAPI(
+      userId,
+      baseId,
+      tableId
+    );
+
+    return sendSuccessResponse(res, result);
+  } catch (error) {
+    return sendErrorResponse(res, error);
+  }
+}
+
 export default {
   fetchRevisionHistory,
   syncRevisionHistory,
   getRevisionHistory,
+  fetchRevisionHistoryAPI,
+  syncRevisionHistoryAPI,
 };

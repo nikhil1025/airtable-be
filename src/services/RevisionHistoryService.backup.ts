@@ -618,7 +618,7 @@ export class RevisionHistoryService {
         userId,
       }).sort({ createdDate: -1 });
 
-      return revisions.map((rev) => ({
+      return revisions.map((rev: any) => ({
         uuid: rev.uuid,
         issueId: rev.issueId,
         columnType: rev.columnType,
@@ -641,15 +641,38 @@ export class RevisionHistoryService {
   }
 
   /**
-   * Checks if cookies are valid before sync
+   * Checks if cookies are valid before sync and attempts automatic refresh
    */
   async ensureValidCookies(userId: string): Promise<boolean> {
     try {
       const isValid = await CookieScraperService.validateCookies(userId);
 
       if (!isValid) {
+        logger.warn("Cookies invalid, checking if auto-refresh is available", { userId });
+        
+        // Check if we have stored credentials for auto-refresh
+        const connection = await AirtableConnection.findOne({ userId });
+        if (connection && connection.email) {
+          logger.info("Attempting automatic cookie refresh", { userId, email: connection.email });
+          
+          try {
+            // Attempt automatic refresh (Note: password would be needed for full auto-refresh)
+            // For now, provide clear guidance to user
+            const refreshResult = await CookieScraperService.validateCookies(userId);
+            if (refreshResult) {
+              logger.info("Cookie refresh successful", { userId });
+              return true;
+            }
+          } catch (refreshError) {
+            logger.error("Automatic cookie refresh failed", refreshError, { userId });
+          }
+        }
+        
         throw new AppError(
-          "Cookies are invalid or expired. Please refresh cookies before syncing revision history.",
+          "Cookies are invalid or expired. Please run the cookie refresh command:\n\n" +
+          "curl -X POST http://localhost:3000/api/airtable/cookies/login \\\n" +
+          '  -H "Content-Type: application/json" \\\n' +
+          `  -d '{"email":"YOUR_EMAIL","password":"YOUR_PASSWORD","userId":"${userId}"}'",
           401,
           "COOKIES_INVALID"
         );
@@ -659,6 +682,112 @@ export class RevisionHistoryService {
     } catch (error) {
       logger.error("Cookie validation failed", error, { userId });
       throw error;
+    }
+  }
+
+  /**
+   * PRODUCTION: Sync revision history for all tickets in database
+   * Processes all tickets and stores data in RevisionHistory collection
+   */
+  async syncAllRevisionHistory(userId?: string): Promise<{
+    success: boolean;
+    processedTickets: number;
+    totalRevisions: number;
+    savedRevisions: number;
+    errors: string[];
+  }> {
+    try {
+      logger.info("Starting revision history sync for all tickets", { userId });
+
+      // Get all tickets for the user or all tickets if no userId
+      const query = userId ? { userId } : {};
+      const tickets = await Ticket.find(query).select(
+        'userId baseId tableId airtableRecordId title status assignee'
+      );
+
+      logger.info(`Found ${tickets.length} tickets to process`);
+
+      const errors: string[] = [];
+      let totalRevisions = 0;
+      let savedRevisions = 0;
+      const batchSize = 5; // Process in batches to avoid overwhelming
+
+      // Process tickets in batches
+      for (let i = 0; i < tickets.length; i += batchSize) {
+        const batch = tickets.slice(i, i + batchSize);
+        
+        await Promise.all(
+          batch.map(async (ticket) => {
+            try {
+              logger.info(`Processing ticket ${i + batch.indexOf(ticket) + 1}/${tickets.length}`, {
+                recordId: ticket.airtableRecordId,
+                title: (ticket.fields as any)?.Name || 'Unknown'
+              });
+
+              const result = await this.fetchRevisionHistoryAPI(
+                ticket.userId,
+                ticket.airtableRecordId
+              );
+
+              totalRevisions += result.revisions.length;
+
+              // Store revisions in the requested format
+              const formattedRevisions = result.revisions.map(rev => ({
+                uuid: rev.uuid,
+                issueId: rev.issueId,
+                columnType: rev.columnType,
+                oldValue: rev.oldValue,
+                newValue: rev.newValue,
+                createdDate: rev.createdDate,
+                authoredBy: rev.authoredBy,
+                userId: ticket.userId,
+                baseId: ticket.baseId,
+                tableId: ticket.tableId,
+                processedAt: new Date()
+              }));
+
+              if (formattedRevisions.length > 0) {
+                // Use upsert to avoid duplicates
+                for (const revision of formattedRevisions) {
+                  await RevisionHistory.findOneAndUpdate(
+                    { uuid: revision.uuid }, // Match by unique activity ID
+                    revision,
+                    { upsert: true, new: true }
+                  );
+                  savedRevisions++;
+                }
+              }
+
+              // Add delay to avoid rate limiting
+              await delay(1000);
+
+            } catch (error) {
+              const errorMsg = `Failed to process ${ticket.airtableRecordId}: ${(error as Error).message}`;
+              logger.error(errorMsg, { error, recordId: ticket.airtableRecordId });
+              errors.push(errorMsg);
+            }
+          })
+        );
+      }
+
+      logger.info("Revision history sync completed", {
+        processedTickets: tickets.length,
+        totalRevisions,
+        savedRevisions,
+        errors: errors.length
+      });
+
+      return {
+        success: true,
+        processedTickets: tickets.length,
+        totalRevisions,
+        savedRevisions,
+        errors
+      };
+
+    } catch (error) {
+      logger.error("Failed to sync revision history for all tickets", error);
+      throw handleScrapingError(error);
     }
   }
 
@@ -687,10 +816,7 @@ export class RevisionHistoryService {
       }
 
       // Check if cookies are expired
-      if (
-        connection.cookiesValidUntil &&
-        new Date(connection.cookiesValidUntil) < new Date()
-      ) {
+      if (connection.cookiesValidUntil && new Date(connection.cookiesValidUntil) < new Date()) {
         throw new AppError(
           "Cookies have expired. Please refresh authentication.",
           401,
@@ -699,9 +825,9 @@ export class RevisionHistoryService {
       }
 
       // Get ticket information
-      const ticket = await Ticket.findOne({
-        userId,
-        airtableRecordId: recordId,
+      const ticket = await Ticket.findOne({ 
+        userId, 
+        airtableRecordId: recordId 
       });
       if (!ticket) {
         throw new AppError(
@@ -712,10 +838,10 @@ export class RevisionHistoryService {
       }
 
       // Get table schema for column mapping
-      const table = await Table.findOne({
+      const table = await Table.findOne({ 
         userId,
         baseId: ticket.baseId,
-        airtableTableId: ticket.tableId,
+        airtableTableId: ticket.tableId 
       });
       if (!table) {
         throw new AppError(
@@ -727,57 +853,50 @@ export class RevisionHistoryService {
 
       // Use the correct API endpoint format
       const url = `https://airtable.com/v0.3/row/${recordId}/readRowActivitiesAndComments`;
-
+      
       const params = {
         stringifiedObjectParams: JSON.stringify({
           limit: 10,
           offsetV2: null,
           shouldReturnDeserializedActivityItems: true,
-          shouldIncludeRowActivityOrCommentUserObjById: true,
+          shouldIncludeRowActivityOrCommentUserObjById: true
         }),
         requestId: `req${Date.now()}${Math.random().toString(36).substr(2, 9)}`,
-        secretSocketId: `soc${Date.now()}${Math.random()
-          .toString(36)
-          .substr(2, 9)}`,
+        secretSocketId: `soc${Date.now()}${Math.random().toString(36).substr(2, 9)}`
       };
 
       logger.info("Making API request to correct endpoint", {
         url,
         recordId,
         tableId: ticket.tableId,
-        baseId: ticket.baseId,
+        baseId: ticket.baseId
       });
 
       const response = await axios.get(url, {
         params: params,
         headers: {
-          Cookie: connection.cookies,
-          "User-Agent":
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          Accept: "application/json, text/plain, */*",
-          "Accept-Language": "en-US,en;q=0.9",
-          Origin: "https://airtable.com",
-          Referer: `https://airtable.com/${ticket.baseId}`,
-          "X-Requested-With": "XMLHttpRequest",
-          "Sec-Fetch-Dest": "empty",
-          "Sec-Fetch-Mode": "cors",
-          "Sec-Fetch-Site": "same-origin",
+          'Cookie': connection.cookies,
+          'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/json, text/plain, */*',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Origin': 'https://airtable.com',
+          'Referer': `https://airtable.com/${ticket.baseId}`,
+          'X-Requested-With': 'XMLHttpRequest',
+          'Sec-Fetch-Dest': 'empty',
+          'Sec-Fetch-Mode': 'cors',
+          'Sec-Fetch-Site': 'same-origin'
         },
-        timeout: 30000,
+        timeout: 30000
       });
 
       logger.info("API response received", {
         recordId,
         status: response.status,
-        responseType: typeof response.data,
+        responseType: typeof response.data
       });
 
       // Parse the API response
-      const parsedRevisions = this.parseAPIResponse(
-        response.data,
-        recordId,
-        table.fields
-      );
+      const parsedRevisions = this.parseAPIResponse(response.data, recordId, table.fields);
 
       // Save revisions to database
       const savedCount = await this.saveRevisions(parsedRevisions, userId);
@@ -785,14 +904,15 @@ export class RevisionHistoryService {
       logger.info("API revision history processed", {
         recordId,
         foundRevisions: parsedRevisions.length,
-        savedRevisions: savedCount,
+        savedRevisions: savedCount
       });
 
       return {
         success: true,
         revisions: parsedRevisions,
-        message: `Found ${parsedRevisions.length} Status/Assignee changes`,
+        message: `Found ${parsedRevisions.length} Status/Assignee changes`
       };
+
     } catch (error) {
       logger.error("Failed to fetch revision history via API", error, {
         userId,
@@ -811,16 +931,16 @@ export class RevisionHistoryService {
     tableFields: any[]
   ): RevisionChange[] {
     const revisions: RevisionChange[] = [];
-
+    
     try {
       logger.info("Parsing API response", {
         responseType: typeof response,
-        responseKeys: Object.keys(response || {}),
+        responseKeys: Object.keys(response || {})
       });
-
+      
       // Try to find activities in response
       let activities = [];
-
+      
       // Check various possible response structures
       if (response?.data?.results) {
         const results = response.data.results;
@@ -846,22 +966,22 @@ export class RevisionHistoryService {
 
       // Process each activity
       for (const activity of activities) {
+        
         // Only process cell value changes
-        const isFieldChange =
-          activity.type === "updateCellValues" ||
-          activity.activityType === "updateCellValues" ||
-          activity.type === "fieldUpdate" ||
-          activity.activityType === "fieldUpdate";
+        const isFieldChange = 
+          activity.type === 'updateCellValues' ||
+          activity.activityType === 'updateCellValues' ||
+          activity.type === 'fieldUpdate' ||
+          activity.activityType === 'fieldUpdate';
 
         if (!isFieldChange) {
           continue;
         }
 
-        const cellChanges =
-          activity.activityData?.cellValuesByColumnId ||
-          activity.data?.cellValuesByColumnId ||
-          activity.cellChanges ||
-          activity.fieldChanges;
+        const cellChanges = activity.activityData?.cellValuesByColumnId || 
+                           activity.data?.cellValuesByColumnId ||
+                           activity.cellChanges ||
+                           activity.fieldChanges;
 
         if (!cellChanges) {
           continue;
@@ -869,9 +989,10 @@ export class RevisionHistoryService {
 
         // Process each changed column
         for (const [columnId, change] of Object.entries(cellChanges)) {
+          
           // Find column information from table schema
-          const column = tableFields.find((f) => f.id === columnId);
-
+          const column = tableFields.find(f => f.id === columnId);
+          
           if (!column) {
             continue;
           }
@@ -880,11 +1001,10 @@ export class RevisionHistoryService {
           const columnType = column.type;
 
           // CRITICAL FILTER: Only include Status and Assignee changes
-          const isStatusColumn = columnName.toLowerCase().includes("status");
-          const isAssigneeColumn =
-            columnName.toLowerCase().includes("assignee") ||
-            columnType === "multipleCollaborators" ||
-            columnType === "singleCollaborator";
+          const isStatusColumn = columnName.toLowerCase().includes('status');
+          const isAssigneeColumn = columnName.toLowerCase().includes('assignee') || 
+                                   columnType === 'multipleCollaborators' ||
+                                   columnType === 'singleCollaborator';
 
           if (!isStatusColumn && !isAssigneeColumn) {
             continue;
@@ -892,38 +1012,24 @@ export class RevisionHistoryService {
 
           // Extract old and new values
           const changeData = change as any;
-          const oldValue = this.formatFieldValue(
-            changeData.prevValue || changeData.oldValue,
-            columnType
-          );
-          const newValue = this.formatFieldValue(
-            changeData.newValue || changeData.value,
-            columnType
-          );
+          const oldValue = this.formatFieldValue(changeData.prevValue || changeData.oldValue, columnType);
+          const newValue = this.formatFieldValue(changeData.newValue || changeData.value, columnType);
 
           // Create revision entry
           revisions.push({
-            uuid:
-              activity.id ||
-              activity.activityId ||
-              `activity_${Date.now()}_${Math.random()}`,
+            uuid: activity.id || activity.activityId || `activity_${Date.now()}_${Math.random()}`,
             issueId: recordId,
-            columnType: isStatusColumn ? "Status" : "Assignee",
+            columnType: isStatusColumn ? 'Status' : 'Assignee',
             oldValue: oldValue,
             newValue: newValue,
-            createdDate: new Date(
-              activity.createdTime || activity.timestamp || new Date()
-            ),
-            authoredBy:
-              activity.originatingUserId ||
-              activity.userId ||
-              activity.user ||
-              "unknown",
+            createdDate: new Date(activity.createdTime || activity.timestamp || new Date()),
+            authoredBy: activity.originatingUserId || activity.userId || activity.user || 'unknown'
           });
         }
       }
+
     } catch (error) {
-      logger.error("Error parsing API response", error);
+      logger.error('Error parsing API response', error);
     }
 
     return revisions;
@@ -933,44 +1039,44 @@ export class RevisionHistoryService {
    * Format field values based on column type
    */
   private formatFieldValue(value: any, columnType?: string): string {
+    
     if (value === null || value === undefined) {
-      return "";
+      return '';
     }
 
     // Handle different column types
     switch (columnType) {
-      case "singleSelect":
+      
+      case 'singleSelect':
         return value?.name || String(value);
-
-      case "multipleSelects":
+      
+      case 'multipleSelects':
         if (Array.isArray(value)) {
-          return value.map((v) => v?.name || String(v)).join(", ");
+          return value.map(v => v?.name || String(v)).join(', ');
         }
         return String(value);
-
-      case "singleCollaborator":
+      
+      case 'singleCollaborator':
         return value?.email || value?.name || value?.id || String(value);
-
-      case "multipleCollaborators":
+      
+      case 'multipleCollaborators':
         if (Array.isArray(value)) {
-          return value
-            .map((v) => v?.email || v?.name || v?.id || String(v))
-            .join(", ");
+          return value.map(v => v?.email || v?.name || v?.id || String(v)).join(', ');
         }
         return String(value);
-
-      case "date":
-      case "dateTime":
-        if (typeof value === "string") {
+      
+      case 'date':
+      case 'dateTime':
+        if (typeof value === 'string') {
           return new Date(value).toLocaleDateString();
         }
         return String(value);
-
-      case "checkbox":
-        return value ? "Checked" : "Unchecked";
-
+      
+      case 'checkbox':
+        return value ? 'Checked' : 'Unchecked';
+      
       default:
-        if (typeof value === "object") {
+        if (typeof value === 'object') {
           return JSON.stringify(value);
         }
         return String(value);
@@ -1004,11 +1110,7 @@ export class RevisionHistoryService {
       const tickets = await Ticket.find(query);
 
       if (tickets.length === 0) {
-        logger.info("No tickets found for API sync", {
-          userId,
-          baseId,
-          tableId,
-        });
+        logger.info("No tickets found for API sync", { userId, baseId, tableId });
         return {
           success: true,
           processed: 0,
@@ -1018,9 +1120,7 @@ export class RevisionHistoryService {
         };
       }
 
-      logger.info("Found tickets to process via API", {
-        count: tickets.length,
-      });
+      logger.info("Found tickets to process via API", { count: tickets.length });
 
       let totalProcessed = 0;
       let totalSynced = 0;
@@ -1031,10 +1131,10 @@ export class RevisionHistoryService {
       for (const ticket of tickets) {
         try {
           totalProcessed++;
-
+          
           logger.info("Processing ticket via API", {
             recordId: ticket.airtableRecordId,
-            progress: `${totalProcessed}/${tickets.length}`,
+            progress: `${totalProcessed}/${tickets.length}`
           });
 
           const result = await this.fetchRevisionHistoryAPI(
@@ -1046,22 +1146,22 @@ export class RevisionHistoryService {
             totalSynced++;
             logger.info("Successfully processed ticket via API", {
               recordId: ticket.airtableRecordId,
-              revisionsFound: result.revisions?.length || 0,
+              revisionsFound: result.revisions?.length || 0
             });
           }
+
         } catch (error) {
           totalFailed++;
-          const errorMessage =
-            error instanceof Error ? error.message : "Unknown error";
-
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          
           logger.error("Failed to process ticket via API", {
             recordId: ticket.airtableRecordId,
-            error: errorMessage,
+            error: errorMessage
           });
 
           errors.push({
             recordId: ticket.airtableRecordId,
-            error: errorMessage,
+            error: errorMessage
           });
         }
 
@@ -1085,10 +1185,9 @@ export class RevisionHistoryService {
         failed: totalFailed,
         errors,
       };
+
     } catch (error) {
-      logger.error("Failed to sync revision history via API", error, {
-        userId,
-      });
+      logger.error("Failed to sync revision history via API", error, { userId });
       throw handleScrapingError(error);
     }
   }

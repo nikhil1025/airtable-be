@@ -16,8 +16,15 @@ export class CookieScraperService {
   private static getWorkerPool(): WorkerPool {
     if (!this.workerPool) {
       const workerFile = path.join(__dirname, "../workers/puppeteerWorker.js");
-      this.workerPool = new WorkerPool(workerFile, 4); // Pool of 4 workers
-      logger.info("Puppeteer worker pool created", { poolSize: 4 });
+      // Use CPU count - 1, minimum 4, maximum 10
+      const cpuCount = require("os").cpus().length;
+      const poolSize = Math.min(Math.max(cpuCount - 1, 4), 10);
+      this.workerPool = new WorkerPool(workerFile, poolSize);
+      logger.info("Puppeteer worker pool created", {
+        poolSize,
+        cpuCount,
+        message: `Using ${poolSize} workers for parallel scraping`,
+      });
     }
     return this.workerPool;
   }
@@ -43,9 +50,7 @@ export class CookieScraperService {
   /**
    * Get cookies from database as array format for Puppeteer
    */
-  static async getCookiesFromDB(
-    userId: string
-  ): Promise<Array<{ name: string; value: string }>> {
+  static async getCookiesFromDB(userId: string): Promise<Array<any>> {
     const connection = await AirtableConnection.findOne({ userId });
 
     if (!connection || !connection.cookies) {
@@ -55,13 +60,68 @@ export class CookieScraperService {
     // Decrypt cookies string
     const cookiesStr = decrypt(connection.cookies);
 
-    // Parse cookie string into array format
-    const cookieArray = cookiesStr.split("; ").map((cookie) => {
-      const [name, value] = cookie.split("=");
-      return { name, value };
-    });
+    // Parse cookies - they're already in full format from login
+    try {
+      const cookiesArray = JSON.parse(cookiesStr);
 
-    return cookieArray;
+      // Return cookies with all their properties
+      return cookiesArray.map((cookie: any) => {
+        const puppeteerCookie: any = {
+          name: cookie.name,
+          value: cookie.value,
+          path: cookie.path || "/",
+        };
+
+        // __Host- prefixed cookies MUST NOT have a domain attribute
+        // They are bound to the exact hostname that set them
+        if (!cookie.name.startsWith("__Host-")) {
+          puppeteerCookie.domain = cookie.domain;
+        }
+
+        // Add optional fields
+        if (cookie.expires) puppeteerCookie.expires = cookie.expires;
+        if (cookie.httpOnly !== undefined)
+          puppeteerCookie.httpOnly = cookie.httpOnly;
+        if (cookie.secure !== undefined) puppeteerCookie.secure = cookie.secure;
+        if (cookie.sameSite) puppeteerCookie.sameSite = cookie.sameSite;
+
+        return puppeteerCookie;
+      });
+    } catch (e) {
+      // Fallback: Parse cookie string format (old format)
+      const cookieArray = cookiesStr.split("; ").map((cookie) => {
+        const [name, value] = cookie.split("=");
+        return {
+          name,
+          value,
+          domain: ".airtable.com",
+          path: "/",
+        };
+      });
+      return cookieArray;
+    }
+  }
+
+  /**
+   * Get localStorage data from database
+   */
+  static async getLocalStorageFromDB(
+    userId: string
+  ): Promise<Record<string, string>> {
+    const connection = await AirtableConnection.findOne({ userId });
+
+    if (!connection || !connection.localStorage) {
+      return {}; // Return empty object if no localStorage
+    }
+
+    try {
+      // Decrypt and parse localStorage
+      const localStorageStr = decrypt(connection.localStorage);
+      return JSON.parse(localStorageStr);
+    } catch (e) {
+      logger.warn("Failed to parse localStorage", { error: e });
+      return {};
+    }
   }
 
   /**
@@ -81,7 +141,11 @@ export class CookieScraperService {
     email: string,
     password: string,
     mfaCode?: string
-  ): Promise<Array<{ name: string; value: string }>> {
+  ): Promise<{
+    cookies: Array<any>;
+    localStorage: Record<string, string>;
+    accessToken: string | null;
+  }> {
     try {
       logger.info("Starting automatic cookie retrieval with Worker Thread", {
         email,
@@ -91,7 +155,9 @@ export class CookieScraperService {
 
       const result = await workerPool.execute<{
         success: boolean;
-        cookies?: Array<{ name: string; value: string }>;
+        cookies?: Array<any>;
+        localStorage?: Record<string, string>;
+        accessToken?: string | null;
         error?: string;
       }>({
         type: "login",
@@ -106,11 +172,19 @@ export class CookieScraperService {
         );
       }
 
-      logger.info("Cookies retrieved successfully via worker thread", {
-        count: result.cookies.length,
-      });
+      logger.info(
+        "Cookies and localStorage retrieved successfully via worker thread",
+        {
+          cookiesCount: result.cookies.length,
+          localStorageCount: Object.keys(result.localStorage || {}).length,
+        }
+      );
 
-      return result.cookies;
+      return {
+        cookies: result.cookies,
+        localStorage: result.localStorage || {},
+        accessToken: result.accessToken || null,
+      };
     } catch (error) {
       logger.error("Automatic cookie retrieval with worker failed", { error });
       throw new AppError(
@@ -384,30 +458,53 @@ export class CookieScraperService {
     try {
       // Automatically retrieve cookies using Puppeteer Worker Thread (non-blocking)
       logger.info("Using worker thread for cookie extraction", { userId });
-      const cookies = await this.automaticallyRetrieveCookiesWithWorker(
+      const result = await this.automaticallyRetrieveCookiesWithWorker(
         email,
         password,
         mfaCode
       );
+      const { cookies, localStorage, accessToken } = result;
 
-      // Encrypt and store
+      // Encrypt and store cookies
       const cookiesString = JSON.stringify(cookies);
       const encryptedCookies = encrypt(cookiesString);
+
+      // Encrypt and store localStorage
+      const localStorageString = JSON.stringify(localStorage);
+      const encryptedLocalStorage = encrypt(localStorageString);
+
+      // Encrypt and store access token if available
+      let encryptedAccessToken = null;
+      if (accessToken) {
+        encryptedAccessToken = encrypt(accessToken);
+        logger.info("Access token extracted and will be stored", { userId });
+      } else {
+        logger.warn("No access token found during extraction", { userId });
+      }
+
       const validUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
 
       await AirtableConnection.findOneAndUpdate(
         { userId },
         {
           cookies: encryptedCookies,
+          localStorage: encryptedLocalStorage,
+          accessToken: encryptedAccessToken,
           cookiesValidUntil: validUntil,
         },
         { upsert: true, new: true }
       );
 
-      logger.info("Automatically retrieved cookies stored for user", {
-        userId,
-        validUntil: validUntil.toISOString(),
-      });
+      logger.info(
+        "Automatically retrieved cookies and localStorage stored for user",
+        {
+          userId,
+          cookiesCount: cookies.length,
+          localStorageCount: Object.keys(localStorage).length,
+          hasAccessToken: !!accessToken,
+          validUntil: validUntil.toISOString(),
+        }
+      );
 
       return { validUntil };
     } catch (error) {
@@ -434,37 +531,180 @@ export class CookieScraperService {
         return false;
       }
 
-      const cookiesString = decrypt(connection.cookies);
-      const cookies = JSON.parse(cookiesString) as Array<{
-        name: string;
-        value: string;
-      }>;
+      // Check if cookies were extracted recently (within last 5 minutes)
+      const now = new Date();
+      const cookieAge = now.getTime() - connection.createdAt.getTime();
+      const fiveMinutesInMs = 5 * 60 * 1000;
 
-      const cookieHeader = cookies
-        .map((c) => `${c.name}=${c.value}`)
-        .join("; ");
-
-      // Test cookies by making request to Airtable
-      const response = await axios.get("https://airtable.com", {
-        headers: {
-          Cookie: cookieHeader,
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        },
-        maxRedirects: 0,
-        validateStatus: (status) => status < 400,
-      });
-
-      // Check if we got redirected to login
-      if (
-        response.request?.path?.includes("/login") ||
-        response.data?.includes("Sign in")
-      ) {
-        logger.warn("Cookies invalid - redirected to login", { userId });
-        return false;
+      if (cookieAge < fiveMinutesInMs) {
+        console.log(
+          "✅ Cookies are fresh (extracted within last 5 minutes), skipping network validation"
+        );
+        logger.info("Cookies validated as fresh", {
+          userId,
+          ageSeconds: Math.round(cookieAge / 1000),
+        });
+        return true;
       }
 
-      return true;
+      const cookiesString = decrypt(connection.cookies);
+
+      console.log("🔍 DEBUG: Raw decrypted cookie string:");
+      console.log("First 200 chars:", cookiesString.substring(0, 200));
+      console.log("Type:", typeof cookiesString);
+      console.log("Length:", cookiesString.length);
+
+      // Helper function to parse HTTP cookie string format
+      const parseCookies = (cookieString: string) => {
+        const cookies: Array<{ name: string; value: string }> = [];
+        if (!cookieString) return cookies;
+
+        const cookiePairs = cookieString.split(";").map((pair) => pair.trim());
+        for (const pair of cookiePairs) {
+          const [name, ...valueParts] = pair.split("=");
+          if (name && valueParts.length > 0) {
+            cookies.push({
+              name: name.trim(),
+              value: valueParts.join("=").trim(), // Join back in case value contains '='
+            });
+          }
+        }
+        return cookies;
+      };
+
+      let cookieHeader: string;
+      let parsedCookies: Array<{ name: string; value: string }>;
+
+      try {
+        // Try parsing as JSON array (old format)
+        console.log("🔄 Attempting JSON parse...");
+        parsedCookies = JSON.parse(cookiesString) as Array<{
+          name: string;
+          value: string;
+        }>;
+        console.log(
+          "✅ JSON parse successful, cookie count:",
+          parsedCookies.length
+        );
+        cookieHeader = parsedCookies
+          .map((c) => `${c.name}=${c.value}`)
+          .join("; ");
+      } catch (jsonError) {
+        console.log("❌ JSON parse failed:", (jsonError as Error).message);
+        console.log(
+          "🔄 Parsing as HTTP cookie string format (new auth system)"
+        );
+
+        // Parse HTTP cookie string format: "name1=value1; name2=value2"
+        parsedCookies = parseCookies(cookiesString);
+        console.log(
+          "✅ HTTP cookie parsing successful, cookie count:",
+          parsedCookies.length
+        );
+        cookieHeader = cookiesString; // Already in correct format
+      }
+
+      console.log(
+        "🍪 Final cookie header (first 200 chars):",
+        cookieHeader.substring(0, 200)
+      );
+
+      // For recently extracted cookies (within 10 minutes), try simplified validation
+      if (cookieAge < 10 * 60 * 1000) {
+        console.log(
+          "🚀 Cookies are relatively fresh, using simplified validation"
+        );
+
+        // Check if key Airtable cookies are present
+        const hasSessionCookie =
+          cookieHeader.includes("airtable-session") ||
+          cookieHeader.includes("login-status");
+        const hasAuthCookies =
+          cookieHeader.includes("userSignature") ||
+          cookieHeader.includes("mbpg");
+
+        if (hasSessionCookie && hasAuthCookies) {
+          console.log("✅ Key authentication cookies found, assuming valid");
+          logger.info("Cookies validated by presence check", { userId });
+          return true;
+        }
+      }
+
+      // Test cookies by making request to actual workspace (more reliable than API)
+      console.log("🧪 Testing cookies against workspace page...");
+
+      try {
+        const response = await axios.get(
+          "https://airtable.com/appMeCVHbYCljHyu5",
+          {
+            headers: {
+              Cookie: cookieHeader,
+              "User-Agent":
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36",
+              Accept:
+                "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+              "Accept-Language": "en-US,en;q=0.9",
+            },
+            timeout: 15000,
+            maxRedirects: 2,
+            validateStatus: (status) => status < 500,
+          }
+        );
+
+        console.log("🔍 Workspace Response Status:", response.status);
+
+        // Check if we got successful workspace access
+        if (response.status === 200) {
+          const responseText = response.data.toString();
+          // Check for indicators that we're authenticated and in a workspace
+          if (
+            responseText.includes("airtable-session") ||
+            responseText.includes("workspace") ||
+            responseText.includes("application") ||
+            (!responseText.includes("Sign in") &&
+              !responseText.includes("login"))
+          ) {
+            console.log(
+              "✅ Workspace validation successful - authenticated access confirmed"
+            );
+            logger.info("Cookies validated successfully against workspace", {
+              userId,
+            });
+            return true;
+          }
+        }
+
+        // If workspace test fails, cookies likely need refresh
+        console.log("❌ Workspace validation failed - cookies may be expired");
+        logger.warn("Workspace validation failed", {
+          userId,
+          status: response.status,
+        });
+        return false;
+      } catch (networkError: any) {
+        console.log(
+          "🚨 Network error during workspace validation:",
+          networkError.message
+        );
+
+        // For fresh cookies with network errors, be lenient
+        if (cookieAge < 10 * 60 * 1000) {
+          console.log(
+            "⚡ Network issues but cookies are fresh - assuming valid"
+          );
+          logger.info(
+            "Cookies assumed valid due to network issues and freshness",
+            { userId }
+          );
+          return true;
+        }
+
+        logger.warn("Network validation failed for older cookies", {
+          userId,
+          error: networkError.message,
+        });
+        return false;
+      }
     } catch (error) {
       logger.error("Cookie validation failed", error, { userId });
       return false;

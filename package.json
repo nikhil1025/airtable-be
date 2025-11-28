@@ -9,7 +9,8 @@
         "build": "tsc",
         "start": "node dist/server.js",
         "start:cluster": "node dist/server.cluster.js",
-        "test": "echo \"Error: no test specified\" && exit 1"
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "test:revision-worker": "ts-node src/scripts/test-revision-worker.ts"
     },
     "keywords": [
         "airtable",

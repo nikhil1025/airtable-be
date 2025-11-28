@@ -1,7 +1,7 @@
+import fs from "fs";
 import path from "path";
 import { Worker } from "worker_threads";
 import { logger } from "../utils/errors";
-import fs from "fs";
 
 /**
  * Worker Pool - Manages pool of worker threads for parallel processing
@@ -22,19 +22,21 @@ export class WorkerPool {
   private initializePool(): void {
     // Determine if we're running in development (ts-node) or production (compiled)
     let workerPath = path.resolve(__dirname, this.workerFile);
-    
+
     // If .js file doesn't exist, try .ts (development mode with ts-node)
-    if (!fs.existsSync(workerPath) && workerPath.endsWith('.js')) {
-      const tsPath = workerPath.replace(/\.js$/, '.ts');
+    if (!fs.existsSync(workerPath) && workerPath.endsWith(".js")) {
+      const tsPath = workerPath.replace(/\.js$/, ".ts");
       if (fs.existsSync(tsPath)) {
         workerPath = tsPath;
-        logger.info("Using TypeScript worker file for development", { workerPath });
+        logger.info("Using TypeScript worker file for development", {
+          workerPath,
+        });
       }
     }
 
     for (let i = 0; i < this.poolSize; i++) {
       const worker = new Worker(workerPath, {
-        execArgv: workerPath.endsWith('.ts') ? ['-r', 'ts-node/register'] : [],
+        execArgv: workerPath.endsWith(".ts") ? ["-r", "ts-node/register"] : [],
       });
       this.workers.push(worker);
 

@@ -28,8 +28,16 @@ export class AirtableDataService {
   private batchProcessor: BatchProcessor;
 
   constructor() {
+    const cpuCount = require("os").cpus().length;
+    const poolSize = Math.max(cpuCount - 1, 4); // Leave 1 CPU for system, min 4
+
     this.rateLimiter = new RateLimiter(5, 5); // 5 requests per second, max 5 concurrent
-    this.batchProcessor = new BatchProcessor(8); // 8 concurrent batch operations
+    this.batchProcessor = new BatchProcessor(poolSize); // Dynamic pool size based on CPU
+
+    logger.info("AirtableDataService initialized", {
+      cpuCount,
+      batchProcessorPoolSize: poolSize,
+    });
   }
 
   /**
@@ -51,17 +59,55 @@ export class AirtableDataService {
         family: 4, // Force IPv4
       });
     } catch (error: any) {
-      // If OAuth fails, try cookie-based authentication
-      logger.warn("OAuth authentication failed, attempting cookie-based auth", {
-        userId,
-        error: error.message,
-      });
+      // If OAuth fails, check if we have a stored access token from cookie extraction
+      logger.warn(
+        "OAuth authentication failed, checking for extracted access token",
+        {
+          userId,
+          error: error.message,
+        }
+      );
 
       const connection = await AirtableConnection.findOne({ userId });
 
-      if (!connection || !connection.cookies) {
+      if (!connection) {
         throw new AuthenticationError(
-          "OAuth authentication failed and no valid cookies found. Please re-authenticate."
+          "OAuth authentication failed and no connection found. Please re-authenticate."
+        );
+      }
+
+      // Try to use access token that was extracted during cookie authentication
+      if (connection.accessToken) {
+        try {
+          const extractedToken = decrypt(connection.accessToken);
+          logger.info("Using extracted access token from cookie session", {
+            userId,
+          });
+
+          return axios.create({
+            baseURL: config.airtable.baseUrl,
+            headers: {
+              Authorization: `Bearer ${extractedToken}`,
+              "Content-Type": "application/json",
+            },
+            timeout: 30000,
+            family: 4,
+          });
+        } catch (tokenError: any) {
+          logger.warn(
+            "Failed to use extracted access token, falling back to cookie auth",
+            {
+              userId,
+              error: tokenError.message,
+            }
+          );
+        }
+      }
+
+      // Fall back to web scraping approach instead of API calls
+      if (!connection.cookies) {
+        throw new AuthenticationError(
+          "OAuth and token authentication failed and no valid cookies found. Please re-authenticate."
         );
       }
 
@@ -71,22 +117,36 @@ export class AirtableDataService {
         connection.cookiesValidUntil < new Date()
       ) {
         throw new AuthenticationError(
-          "OAuth authentication failed and cookies have expired. Please re-authenticate."
+          "OAuth and token authentication failed and cookies have expired. Please re-authenticate."
         );
       }
 
-      // Use cookie-based authentication
+      // Try cookie-based authentication with proper headers for API requests
       const cookies = decrypt(connection.cookies);
-      logger.info("Using cookie-based authentication as fallback", { userId });
+      logger.info("Using cookie-based authentication for API requests", {
+        userId,
+      });
 
       return axios.create({
         baseURL: config.airtable.baseUrl,
         headers: {
           "Content-Type": "application/json",
           Cookie: cookies,
+          "User-Agent":
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36",
+          Accept: "application/json, text/plain, */*",
+          "Accept-Language": "en-US,en;q=0.9",
+          "Accept-Encoding": "gzip, deflate, br",
+          Referer: "https://airtable.com/",
+          Origin: "https://airtable.com",
+          "Sec-Fetch-Dest": "empty",
+          "Sec-Fetch-Mode": "cors",
+          "Sec-Fetch-Site": "same-site",
+          "X-Requested-With": "XMLHttpRequest",
         },
         timeout: 30000,
         family: 4,
+        withCredentials: true,
       });
     }
   }
@@ -671,9 +731,17 @@ export class AirtableDataService {
    */
   async syncAll(userId: string): Promise<SyncAllResponse> {
     try {
-      logger.info("Starting full sync - will fetch ALL data from Airtable", {
-        userId,
-      });
+      const cpuCount = require("os").cpus().length;
+      const maxConcurrency = Math.max(cpuCount - 1, 4); // Leave 1 CPU for system
+
+      logger.info(
+        "Starting full sync - will fetch ALL data from Airtable with maximum parallelization",
+        {
+          userId,
+          cpuCount,
+          maxConcurrency,
+        }
+      );
 
       let totalBases = 0;
       let totalTables = 0;
@@ -687,9 +755,15 @@ export class AirtableDataService {
 
       // Step 2: Get all bases from MongoDB for parallel processing
       const bases = await Project.find({ userId });
-      logger.info(`Processing ${bases.length} bases in parallel`);
+      logger.info(
+        `Processing ${bases.length} bases with ${maxConcurrency} workers`
+      );
 
-      // Step 3: Process each base in parallel (3 concurrent bases)
+      // Calculate optimal concurrency levels based on data volume
+      const baseConcurrency = Math.min(maxConcurrency, bases.length);
+      const tableConcurrency = Math.min(maxConcurrency * 2, 16); // More aggressive for tables
+
+      // Step 3: Process each base in parallel with dynamic concurrency
       const baseResults = await this.batchProcessor.processBatch(
         bases,
         async (base) => {
@@ -713,7 +787,7 @@ export class AirtableDataService {
             baseId: base.airtableBaseId,
           });
 
-          // Step 4: Process each table in parallel (4 concurrent tables per base)
+          // Step 4: Process each table in parallel with higher concurrency
           const tableResults = await this.batchProcessor.processBatch(
             tables,
             async (table) => {
@@ -733,7 +807,7 @@ export class AirtableDataService {
 
               return tableTickets;
             },
-            { concurrency: 4 }
+            { concurrency: tableConcurrency }
           );
 
           // Sum up tickets from all tables in this base
@@ -749,13 +823,14 @@ export class AirtableDataService {
           return { tables: baseTables, tickets: baseTickets };
         },
         {
-          concurrency: 3,
+          concurrency: baseConcurrency,
           onProgress: (completed, total) => {
             const percentage = Math.round((completed / total) * 100);
             logger.info("Sync progress", {
               completed,
               total,
               percentage: `${percentage}%`,
+              estimatedRemaining: `${total - completed} bases`,
             });
           },
         }
@@ -765,7 +840,7 @@ export class AirtableDataService {
       totalTables = baseResults.reduce((sum, r) => sum + r.tables, 0);
       totalTickets = baseResults.reduce((sum, r) => sum + r.tickets, 0);
 
-      // Step 5: Sync users from base collaborators
+      // Step 5: Sync users from base collaborators (can run in parallel with bases)
       logger.info("Step 5: Syncing users from base collaborators");
       const usersResponse = await this.fetchUsers(userId);
       const totalUsers = usersResponse.users.length;
@@ -777,6 +852,10 @@ export class AirtableDataService {
         totalTables,
         totalTickets,
         totalUsers,
+        concurrencyUsed: {
+          bases: baseConcurrency,
+          tables: tableConcurrency,
+        },
       });
 
       return {

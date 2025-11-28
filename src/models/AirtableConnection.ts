@@ -15,13 +15,17 @@ const AirtableConnectionSchema: Schema = new Schema(
     },
     accessToken: {
       type: String,
-      required: true,
+      default: null,
     },
     refreshToken: {
       type: String,
-      required: true,
+      default: null,
     },
     cookies: {
+      type: String,
+      default: null,
+    },
+    localStorage: {
       type: String,
       default: null,
     },

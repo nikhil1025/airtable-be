@@ -235,6 +235,7 @@ export interface AirtableConnectionDocument {
   accessToken: string;
   refreshToken: string;
   cookies?: string;
+  localStorage?: string;
   cookiesValidUntil?: Date;
   createdAt: Date;
   updatedAt: Date;

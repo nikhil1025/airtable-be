@@ -184,14 +184,30 @@ export async function syncAll(
   try {
     const { userId } = req.body;
 
+    logger.info("📡 [SyncController] Received syncAll request", {
+      userId,
+      body: req.body,
+      url: req.url,
+      method: req.method,
+    });
+
     if (!userId) {
       throw new ValidationError("userId is required");
     }
 
+    logger.info("🔄 [SyncController] Starting full data sync", { userId });
     const result = await AirtableDataService.syncAll(userId);
+
+    logger.info("✅ [SyncController] Full sync completed successfully", {
+      userId,
+      result,
+    });
 
     return sendSuccessResponse(res, result);
   } catch (error) {
+    logger.error("❌ [SyncController] Full sync failed", error, {
+      userId: req.body.userId,
+    });
     return sendErrorResponse(res, error);
   }
 }

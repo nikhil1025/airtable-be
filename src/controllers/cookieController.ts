@@ -93,7 +93,29 @@ export async function getCookiesForTesting(
     }
 
     const cookiesString = await CookieScraperService.getValidCookies(userId);
-    const cookies = JSON.parse(cookiesString);
+
+    // Parse cookies for display - handle both JSON and HTTP string formats
+    let cookies: Array<{ name: string; value: string }>;
+
+    try {
+      // Try parsing as JSON array (old format)
+      cookies = JSON.parse(cookiesString);
+    } catch (jsonError) {
+      // Parse HTTP cookie string format: "name1=value1; name2=value2"
+      cookies = [];
+      if (cookiesString) {
+        const cookiePairs = cookiesString.split(";").map((pair) => pair.trim());
+        for (const pair of cookiePairs) {
+          const [name, ...valueParts] = pair.split("=");
+          if (name && valueParts.length > 0) {
+            cookies.push({
+              name: name.trim(),
+              value: valueParts.join("=").trim(), // Join back in case value contains '='
+            });
+          }
+        }
+      }
+    }
 
     return sendSuccessResponse(res, { cookies });
   } catch (error) {

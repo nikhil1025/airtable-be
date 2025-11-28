@@ -1,6 +1,5 @@
 import { Router } from "express";
 import {
-  autoRetrieveCookies,
   getCookiesForTesting,
   refreshCookies,
   validateCookies,
@@ -8,8 +7,8 @@ import {
 
 const router = Router();
 
-// POST /api/airtable/cookies/auto-retrieve - AUTOMATIC COOKIE EXTRACTION
-router.post("/auto-retrieve", autoRetrieveCookies);
+// POST /api/airtable/cookies/auto-retrieve - DISABLED (using new auth system)
+// router.post("/auto-retrieve", autoRetrieveCookies);
 
 // POST /api/airtable/cookies/validate
 router.post("/validate", validateCookies);

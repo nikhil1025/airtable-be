@@ -5,6 +5,7 @@ import AirtableConnection from "../models/AirtableConnection";
 import { OAuthRefreshResponse, OAuthTokenResponse } from "../types";
 import { decrypt, encrypt } from "../utils/encryption";
 import { AirtableError, AuthenticationError, logger } from "../utils/errors";
+import { WorkerPool } from "../workers/WorkerPool";
 
 // Store PKCE code verifiers temporarily (in production, use Redis or database)
 const pkceStore = new Map<string, string>();
@@ -260,6 +261,13 @@ export class AirtableAuthService {
         throw new AuthenticationError("No Airtable connection found for user");
       }
 
+      // Check if we have an access token
+      if (!connection.accessToken) {
+        throw new AuthenticationError(
+          "No OAuth access token available - please use cookie-based authentication"
+        );
+      }
+
       // Decrypt access token
       const accessToken = decrypt(connection.accessToken);
 
@@ -345,6 +353,127 @@ export class AirtableAuthService {
     } catch (error) {
       logger.error("Failed to check connection status", error, { userId });
       return false;
+    }
+  }
+
+  /**
+   * Performs login with Puppeteer and extracts ALL cookies
+   */
+  async performLoginAndExtractCookies(
+    email: string,
+    password: string
+  ): Promise<{
+    success: boolean;
+    error?: string;
+    userId?: string;
+    cookies?: any[];
+    localStorage?: any;
+  }> {
+    try {
+      console.log("[PUPPETEER_LOGIN] Starting login process...");
+
+      // Create a worker pool instance for login
+      const workerPool = new WorkerPool("./puppeteerWorker.js", 1);
+
+      try {
+        const result = await workerPool.execute<any>({
+          type: "login",
+          data: {
+            email,
+            password,
+            // No mfaCode - will wait for manual MFA completion
+          },
+        });
+
+        // Clean up worker pool
+        await workerPool.terminate();
+
+        // Type assertion to handle worker result
+        const loginResult = result as any;
+
+        if (!loginResult.success) {
+          console.error("[PUPPETEER_LOGIN] Login failed:", loginResult.error);
+          return {
+            success: false,
+            error: loginResult.error || "Login failed",
+          };
+        }
+
+        // Generate userId and store the authentication data
+        const userId = `user_${Date.now()}`;
+        console.log(`[PUPPETEER_LOGIN] Generated userId: ${userId}`);
+
+        // Store cookies and localStorage in database
+        await this.storeCookiesAndData(
+          userId,
+          loginResult.cookies,
+          loginResult.localStorage
+        );
+
+        console.log(
+          `[PUPPETEER_LOGIN] Login successful! Stored ${
+            loginResult.cookies?.length || 0
+          } cookies`
+        );
+
+        return {
+          success: true,
+          userId,
+          cookies: loginResult.cookies,
+          localStorage: loginResult.localStorage,
+        };
+      } catch (workerError) {
+        await workerPool.terminate();
+        throw workerError;
+      }
+    } catch (error) {
+      console.error("[PUPPETEER_LOGIN] Error during login:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  }
+
+  /**
+   * Stores cookies and localStorage data in database
+   */
+  private async storeCookiesAndData(
+    userId: string,
+    cookies: any[],
+    localStorage: any
+  ): Promise<void> {
+    try {
+      // Convert cookies to the format expected by our system
+      const cookieString = cookies
+        .map((cookie) => `${cookie.name}=${cookie.value}`)
+        .join("; ");
+
+      // Encrypt sensitive data
+      const encryptedCookies = encrypt(cookieString);
+      const encryptedLocalStorage = localStorage
+        ? encrypt(JSON.stringify(localStorage))
+        : null;
+
+      // Store in database
+      await AirtableConnection.findOneAndUpdate(
+        { userId },
+        {
+          userId,
+          cookies: encryptedCookies,
+          localStorage: encryptedLocalStorage,
+          cookiesValidUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+          updatedAt: new Date(),
+        },
+        { upsert: true, new: true }
+      );
+
+      console.log(
+        `[COOKIE_STORAGE] Stored cookies and localStorage for user: ${userId}`
+      );
+    } catch (error) {
+      console.error("[COOKIE_STORAGE] Failed to store cookies:", error);
+      throw new Error("Failed to store authentication data");
     }
   }
 }
