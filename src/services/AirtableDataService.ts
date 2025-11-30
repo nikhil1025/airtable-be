@@ -76,11 +76,11 @@ export class AirtableDataService {
         );
       }
 
-      // Try to use access token that was extracted during cookie authentication
-      if (connection.accessToken) {
+      // Try to use scraped access token as fallback (stored separately from OAuth tokens)
+      if (connection.scrapedAccessToken) {
         try {
-          const extractedToken = decrypt(connection.accessToken);
-          logger.info("Using extracted access token from cookie session", {
+          const extractedToken = decrypt(connection.scrapedAccessToken);
+          logger.info("Using scraped access token as fallback", {
             userId,
           });
 
@@ -94,60 +94,17 @@ export class AirtableDataService {
             family: 4,
           });
         } catch (tokenError: any) {
-          logger.warn(
-            "Failed to use extracted access token, falling back to cookie auth",
-            {
-              userId,
-              error: tokenError.message,
-            }
-          );
+          logger.warn("Failed to use scraped access token", {
+            userId,
+            error: tokenError.message,
+          });
         }
       }
 
-      // Fall back to web scraping approach instead of API calls
-      if (!connection.cookies) {
-        throw new AuthenticationError(
-          "OAuth and token authentication failed and no valid cookies found. Please re-authenticate."
-        );
-      }
-
-      // Check if cookies are still valid
-      if (
-        connection.cookiesValidUntil &&
-        connection.cookiesValidUntil < new Date()
-      ) {
-        throw new AuthenticationError(
-          "OAuth and token authentication failed and cookies have expired. Please re-authenticate."
-        );
-      }
-
-      // Try cookie-based authentication with proper headers for API requests
-      const cookies = decrypt(connection.cookies);
-      logger.info("Using cookie-based authentication for API requests", {
-        userId,
-      });
-
-      return axios.create({
-        baseURL: config.airtable.baseUrl,
-        headers: {
-          "Content-Type": "application/json",
-          Cookie: cookies,
-          "User-Agent":
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36",
-          Accept: "application/json, text/plain, */*",
-          "Accept-Language": "en-US,en;q=0.9",
-          "Accept-Encoding": "gzip, deflate, br",
-          Referer: "https://airtable.com/",
-          Origin: "https://airtable.com",
-          "Sec-Fetch-Dest": "empty",
-          "Sec-Fetch-Mode": "cors",
-          "Sec-Fetch-Site": "same-site",
-          "X-Requested-With": "XMLHttpRequest",
-        },
-        timeout: 30000,
-        family: 4,
-        withCredentials: true,
-      });
+      // No valid authentication method available
+      throw new AuthenticationError(
+        "Authentication required. Please complete OAuth authentication first to enable API access."
+      );
     }
   }
 

@@ -268,6 +268,22 @@ export class AirtableAuthService {
         );
       }
 
+      // Check if token is in encrypted format
+      const { isEncrypted } = require("../utils/encryption");
+      if (!isEncrypted(connection.accessToken)) {
+        logger.warn("Access token is not encrypted, clearing invalid token", {
+          userId,
+        });
+        // Clear the invalid token
+        await AirtableConnection.findOneAndUpdate(
+          { userId },
+          { $unset: { accessToken: "", refreshToken: "" } }
+        );
+        throw new AuthenticationError(
+          "Invalid token format detected. Token has been cleared. Please re-authenticate."
+        );
+      }
+
       // Decrypt access token
       const accessToken = decrypt(connection.accessToken);
 

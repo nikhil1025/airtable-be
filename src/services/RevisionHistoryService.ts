@@ -275,6 +275,7 @@ export class RevisionHistoryService {
 
   /**
    * Syncs revision history for all tickets (with batch processing)
+   * First fetches record IDs from tickets DB, then processes revision history in background
    */
   async syncRevisionHistory(
     userId: string,
@@ -282,22 +283,31 @@ export class RevisionHistoryService {
     tableId?: string
   ): Promise<SyncRevisionHistoryResponse> {
     try {
-      logger.info("Starting revision history sync", {
-        userId,
-        baseId,
-        tableId,
-      });
+      logger.info(
+        "Starting revision history sync - fetching record IDs from tickets DB",
+        {
+          userId,
+          baseId,
+          tableId,
+        }
+      );
 
-      // Build query for tickets
+      // Build query for tickets to get record IDs from database first
       const query: Record<string, string> = { userId };
       if (baseId) query.baseId = baseId;
       if (tableId) query.tableId = tableId;
 
-      // Fetch all tickets matching criteria
-      const tickets = await Ticket.find(query);
+      // Step 1: Fetch all tickets with record IDs from database
+      const tickets = await Ticket.find(query)
+        .select("airtableRecordId baseId tableId rowId fields")
+        .lean();
 
       if (tickets.length === 0) {
-        logger.info("No tickets found for sync", { userId, baseId, tableId });
+        logger.info("No tickets found in database for sync", {
+          userId,
+          baseId,
+          tableId,
+        });
         return {
           success: true,
           processed: 0,
@@ -307,26 +317,67 @@ export class RevisionHistoryService {
         };
       }
 
-      logger.info("Found tickets to process", { count: tickets.length });
+      logger.info("Found tickets with record IDs in database", {
+        count: tickets.length,
+        sampleRecordIds: tickets.slice(0, 3).map((t) => t.airtableRecordId),
+      });
 
-      // Process tickets in batches
-      const batchSize = 50;
-      const batches = chunkArray(tickets, batchSize);
+      // Step 2: Filter tickets that don't already have revision history
+      const recordIdsToProcess = [];
+      for (const ticket of tickets) {
+        const existingRevisions = await RevisionHistory.countDocuments({
+          userId,
+          recordId: ticket.airtableRecordId,
+        });
+
+        if (existingRevisions === 0) {
+          recordIdsToProcess.push(ticket);
+        }
+      }
+
+      logger.info("Filtered tickets needing revision history processing", {
+        totalTickets: tickets.length,
+        needProcessing: recordIdsToProcess.length,
+        alreadyProcessed: tickets.length - recordIdsToProcess.length,
+      });
+
+      if (recordIdsToProcess.length === 0) {
+        logger.info("All tickets already have revision history", { userId });
+        return {
+          success: true,
+          processed: tickets.length,
+          synced: 0,
+          failed: 0,
+          errors: [],
+        };
+      }
+
+      // Step 3: Process revision history extraction in background batches
+      const batchSize = 25; // Smaller batches for revision history scraping
+      const batches = chunkArray(recordIdsToProcess, batchSize);
 
       let totalProcessed = 0;
       let totalSynced = 0;
       let totalFailed = 0;
       const errors: Array<{ recordId: string; error: string }> = [];
 
+      logger.info("Starting background revision history extraction", {
+        totalBatches: batches.length,
+        batchSize,
+      });
+
       for (let i = 0; i < batches.length; i++) {
         const batch = batches[i];
-        logger.info("Processing batch", {
+        logger.info("Processing revision history batch in background", {
           batchNumber: i + 1,
           totalBatches: batches.length,
           batchSize: batch.length,
         });
 
-        const batchResult = await this.processTicketBatch(batch, userId);
+        const batchResult = await this.processRevisionHistoryBatch(
+          batch,
+          userId
+        );
 
         totalProcessed += batchResult.processed;
         totalSynced += batchResult.successful;
@@ -339,9 +390,9 @@ export class RevisionHistoryService {
         }));
         errors.push(...convertedErrors);
 
-        // Add delay between batches to avoid overwhelming the server
+        // Add delay between batches to avoid overwhelming the scraping service
         if (i < batches.length - 1) {
-          await delay(1000);
+          await delay(2000); // Longer delay for scraping operations
         }
       }
 
@@ -366,7 +417,153 @@ export class RevisionHistoryService {
   }
 
   /**
-   * Processes a batch of tickets for revision history
+   * Process a batch of tickets for revision history extraction in background
+   * Optimized for scraping operations with proper concurrency control and error resilience
+   */
+  async processRevisionHistoryBatch(
+    tickets: Array<{
+      airtableRecordId: string;
+      baseId: string;
+      tableId: string;
+      rowId: string;
+      fields?: any;
+    }>,
+    userId: string
+  ): Promise<BatchProcessResult> {
+    const results = {
+      processed: 0,
+      successful: 0,
+      failed: 0,
+      errors: [] as Array<{ id: string; error: string }>,
+    };
+
+    // Use lower concurrency for revision history scraping to avoid overwhelming the server
+    const concurrency = 3; // Conservative approach for web scraping
+
+    logger.info("Starting background revision history batch processing", {
+      totalTickets: tickets.length,
+      concurrency,
+      userId,
+    });
+
+    const chunks = chunkArray(tickets, concurrency);
+
+    for (const chunk of chunks) {
+      const promises = chunk.map(async (ticket) => {
+        try {
+          results.processed++;
+
+          logger.info(
+            "Processing revision history for record from tickets DB",
+            {
+              userId,
+              recordId: ticket.airtableRecordId,
+              baseId: ticket.baseId,
+              tableId: ticket.tableId,
+            }
+          );
+
+          // Check if revision history already exists to avoid duplicate work
+          const existingCount = await RevisionHistory.countDocuments({
+            userId,
+            recordId: ticket.airtableRecordId,
+          });
+
+          if (existingCount > 0) {
+            logger.info("Revision history already exists, skipping", {
+              recordId: ticket.airtableRecordId,
+              existingCount,
+            });
+            results.successful++;
+            return { success: true, recordId: ticket.airtableRecordId };
+          }
+
+          // Fetch revision history using the record ID from tickets DB
+          const result = await this.fetchRevisionHistory(
+            userId,
+            ticket.baseId,
+            ticket.tableId,
+            ticket.airtableRecordId,
+            ticket.rowId
+          );
+
+          logger.info("Background revision history fetched, storing in DB", {
+            recordId: ticket.airtableRecordId,
+            revisionsCount: result.revisions?.length || 0,
+          });
+
+          // Store each revision in MongoDB
+          if (result.revisions && result.revisions.length > 0) {
+            const savedCount = await this.saveRevisions(
+              result.revisions,
+              userId
+            );
+
+            logger.info("Stored background revision history in MongoDB", {
+              recordId: ticket.airtableRecordId,
+              savedCount,
+            });
+
+            results.successful++;
+            return { success: true, recordId: ticket.airtableRecordId };
+          } else {
+            logger.warn(
+              "No revisions found for record in background processing",
+              {
+                recordId: ticket.airtableRecordId,
+              }
+            );
+            results.successful++;
+            return { success: true, recordId: ticket.airtableRecordId };
+          }
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : "Unknown error";
+
+          logger.error(
+            "Failed to process ticket revision history in background",
+            {
+              recordId: ticket.airtableRecordId,
+              error: errorMessage,
+            }
+          );
+
+          results.failed++;
+          results.errors.push({
+            id: ticket.airtableRecordId,
+            error: errorMessage,
+          });
+
+          return {
+            success: false,
+            recordId: ticket.airtableRecordId,
+            error: errorMessage,
+          };
+        }
+      });
+
+      // Wait for all promises in this chunk to complete
+      await Promise.allSettled(promises);
+
+      // Add delay between chunks for scraping operations
+      if (chunks.indexOf(chunk) < chunks.length - 1) {
+        await delay(3000); // 3 second delay between chunks for scraping
+      }
+    }
+
+    logger.info("Background revision history batch completed", {
+      userId,
+      totalProcessed: results.processed,
+      successful: results.successful,
+      failed: results.failed,
+      errorCount: results.errors.length,
+    });
+
+    return results;
+  }
+
+  /**
+   * Processes a batch of tickets for revision history (legacy method)
    * Uses parallel processing with concurrency control
    */
   async processTicketBatch(

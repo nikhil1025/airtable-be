@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "commonjs",
-    "lib": ["ES2022"],
+    "target": "ES2023",
+    "module": "CommonJS",
+    "lib": ["ES2023", "DOM"],
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
@@ -10,7 +10,7 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "moduleResolution": "node10",
+    "moduleResolution": "node",
     "allowSyntheticDefaultImports": true,
     "noImplicitAny": true,
     "strictNullChecks": true,
@@ -26,6 +26,10 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true
+  },
+  "ts-node": {
+    "esm": false,
+    "experimentalSpecifierResolution": "node"
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]

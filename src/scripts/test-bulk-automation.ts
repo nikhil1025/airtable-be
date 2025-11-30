@@ -31,9 +31,10 @@ async function testBulkRevisionAutomation() {
     console.log("\n📋 SAMPLE TICKETS:");
     console.log("-".repeat(40));
     sampleTickets.forEach((ticket, index) => {
+      const ticketData = ticket as any;
       console.log(`${index + 1}. ${ticket.airtableRecordId}`);
-      console.log(`   Title: ${ticket.title || "No title"}`);
-      console.log(`   Status: ${ticket.status || "No status"}`);
+      console.log(`   Title: ${ticketData.title || "No title"}`);
+      console.log(`   Status: ${ticketData.status || "No status"}`);
       console.log(`   Base: ${ticket.baseId}`);
     });
 

@@ -234,6 +234,7 @@ export interface AirtableConnectionDocument {
   userId: string;
   accessToken: string;
   refreshToken: string;
+  scrapedAccessToken?: string; // Tokens from cookie scraping (separate from OAuth)
   cookies?: string;
   localStorage?: string;
   cookiesValidUntil?: Date;

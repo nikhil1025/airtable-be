@@ -96,7 +96,8 @@ async function demonstrateRevisionHistoryResult() {
       "• URL: https://airtable.com/appMeCVHbYCljHyu5/tblTF0a1re3cDHx4s/viwfbZDPk6u7uvwdH/recuMKeu0aLm7i0hP?blocks=show"
     );
   } catch (error) {
-    console.error("❌ Error:", error.message);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("❌ Error:", errorMessage);
   } finally {
     process.exit(0);
   }

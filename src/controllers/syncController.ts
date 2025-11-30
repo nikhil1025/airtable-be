@@ -1,17 +1,17 @@
 import { Request, Response } from "express";
 import AirtableDataService from "../services/AirtableDataService";
 import {
-  SyncAllRequest,
-  SyncBasesRequest,
-  SyncTablesRequest,
-  SyncTicketsRequest,
-  SyncUsersRequest,
+    SyncAllRequest,
+    SyncBasesRequest,
+    SyncTablesRequest,
+    SyncTicketsRequest,
+    SyncUsersRequest,
 } from "../types";
 import {
-  logger,
-  sendErrorResponse,
-  sendSuccessResponse,
-  ValidationError,
+    logger,
+    sendErrorResponse,
+    sendSuccessResponse,
+    ValidationError,
 } from "../utils/errors";
 
 /**

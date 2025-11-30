@@ -484,16 +484,29 @@ export class CookieScraperService {
 
       const validUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
 
-      await AirtableConnection.findOneAndUpdate(
-        { userId },
-        {
-          cookies: encryptedCookies,
-          localStorage: encryptedLocalStorage,
-          accessToken: encryptedAccessToken,
-          cookiesValidUntil: validUntil,
-        },
-        { upsert: true, new: true }
-      );
+      // Get existing connection to preserve OAuth tokens
+      const existingConnection = await AirtableConnection.findOne({ userId });
+
+      // Prepare update object, storing scraped tokens separately to preserve OAuth tokens
+      const updateData: any = {
+        cookies: encryptedCookies,
+        localStorage: encryptedLocalStorage,
+        scrapedAccessToken: encryptedAccessToken, // Store in separate field
+        cookiesValidUntil: validUntil,
+      };
+
+      logger.info("Storing scraped data without affecting OAuth tokens", {
+        userId,
+        hasScrapedToken: !!accessToken,
+        hasExistingOAuthTokens: !!(
+          existingConnection?.accessToken && existingConnection?.refreshToken
+        ),
+      });
+
+      await AirtableConnection.findOneAndUpdate({ userId }, updateData, {
+        upsert: true,
+        new: true,
+      });
 
       logger.info(
         "Automatically retrieved cookies and localStorage stored for user",

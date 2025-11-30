@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import AirtableConnection from "../models/AirtableConnection";
 import AirtableAuthService from "../services/AirtableAuthService";
 import {
   AuthorizeRequest,
@@ -7,6 +8,7 @@ import {
   RefreshTokenRequest,
   RefreshTokenResponse,
 } from "../types";
+import { decrypt } from "../utils/encryption";
 import {
   sendErrorResponse,
   sendSuccessResponse,
@@ -113,10 +115,46 @@ export async function refreshToken(
   }
 }
 
+/**
+ * GET /api/airtable/oauth/tokens/:userId
+ * Get OAuth tokens for frontend localStorage storage
+ */
+export async function getOAuthTokens(
+  req: Request<{ userId: string }>,
+  res: Response
+): Promise<Response> {
+  try {
+    const { userId } = req.params;
+
+    if (!userId) {
+      throw new ValidationError("userId is required");
+    }
+
+    const connection = await AirtableConnection.findOne({ userId });
+
+    if (!connection || !connection.accessToken || !connection.refreshToken) {
+      throw new ValidationError("No OAuth tokens found for user");
+    }
+
+    // Decrypt tokens for frontend
+    const accessToken = decrypt(connection.accessToken);
+    const refreshToken = decrypt(connection.refreshToken);
+
+    return sendSuccessResponse(res, {
+      accessToken,
+      refreshToken,
+      userId,
+    });
+  } catch (error) {
+    return sendErrorResponse(res, error);
+  }
+}
+
 export default {
   authorize,
   callback,
   refreshToken,
+  getOAuthTokens,
   validate,
 };
 

@@ -13,11 +13,17 @@ const AirtableConnectionSchema: Schema = new Schema(
       unique: true,
       index: true,
     },
+    // OAuth tokens (from proper OAuth flow)
     accessToken: {
       type: String,
       default: null,
     },
     refreshToken: {
+      type: String,
+      default: null,
+    },
+    // Scraped tokens (from cookie scraping - separate field to avoid conflicts)
+    scrapedAccessToken: {
       type: String,
       default: null,
     },

@@ -755,7 +755,7 @@ async function handleScrapeRevisionHistory(data: any): Promise<any> {
           );
           console.log(
             "[BROWSER] Response Headers:",
-            JSON.stringify(Object.fromEntries(response.headers.entries()))
+            JSON.stringify(response.headers || {})
           );
 
           if (!response.ok) {

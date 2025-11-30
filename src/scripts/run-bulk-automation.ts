@@ -74,10 +74,10 @@ async function runBulkAutomationDemo() {
 
         // Statistics
         const statusChanges = results.revisionHistory.filter(
-          (r) => r.columnType === "Status"
+          (r: any) => r.columnType === "Status"
         ).length;
         const assigneeChanges = results.revisionHistory.filter(
-          (r) => r.columnType === "Assignee"
+          (r: any) => r.columnType === "Assignee"
         ).length;
         const otherChanges =
           results.revisionHistory.length - statusChanges - assigneeChanges;
@@ -89,7 +89,7 @@ async function runBulkAutomationDemo() {
 
         // Show unique records processed
         const uniqueRecords = new Set(
-          results.revisionHistory.map((r) => r.issueId)
+          results.revisionHistory.map((r: any) => r.issueId)
         );
         console.log(`• Unique records with history: ${uniqueRecords.size}`);
       } else {
@@ -108,11 +108,11 @@ async function runBulkAutomationDemo() {
       console.log("✅ Formatted in your exact JSON specification");
       console.log("✅ Stored in RevisionHistory MongoDB collection");
       console.log("✅ Logged to terminal with full details");
-    } catch (error) {
+    } catch (error: any) {
       console.error("\n❌ AUTOMATION FAILED:");
-      console.error(`Error: ${error.message}`);
+      console.error(`Error: ${error?.message || String(error)}`);
 
-      if (error.response) {
+      if (error?.response) {
         console.error(`Status: ${error.response.status}`);
         console.error(
           `Response: ${JSON.stringify(error.response.data, null, 2)}`
