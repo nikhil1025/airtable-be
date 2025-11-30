@@ -5,7 +5,6 @@ import {
     SyncBasesRequest,
     SyncTablesRequest,
     SyncTicketsRequest,
-    SyncUsersRequest,
 } from "../types";
 import {
     logger,
