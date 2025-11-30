@@ -1,17 +1,15 @@
 import axios, { AxiosInstance } from "axios";
 import config from "../config";
-import { AirtableConnection, Project, Table, Ticket, User } from "../models";
+import { AirtableConnection, Project, Table, Ticket } from "../models";
 import {
   AirtableBase,
   AirtablePaginatedResponse,
   AirtableRecord,
   AirtableTable,
-  AirtableUser,
   BasesResponse,
   SyncAllResponse,
   TablesResponse,
   TicketsResponse,
-  UsersResponse,
 } from "../types";
 import { decrypt } from "../utils/encryption";
 import {
@@ -441,93 +439,6 @@ export class AirtableDataService {
   }
 
   /**
-   * Fetches users from Airtable Workspace
-   * NOTE: Airtable uses /meta/whoami to get current user and workspace info
-   * We'll fetch collaborators from bases instead
-   */
-  async fetchUsers(userId: string): Promise<UsersResponse> {
-    try {
-      logger.info("Fetching users from Airtable bases", { userId });
-
-      const axiosInstance = await this.getAxiosInstance(userId);
-      const usersMap = new Map<string, AirtableUser>();
-
-      // Get all bases for this user
-      const bases = await Project.find({ userId });
-
-      // Fetch collaborators from each base
-      for (const base of bases) {
-        try {
-          // Try to get base collaborators - Note: This requires appropriate permissions
-          const response = await this.rateLimiter.execute(() =>
-            retryWithBackoff(async () => {
-              const res = await axiosInstance.get<any>(
-                `/meta/bases/${base.airtableBaseId}/collaborators`
-              );
-              return res.data;
-            })
-          );
-
-          if (response.collaborators && Array.isArray(response.collaborators)) {
-            for (const collab of response.collaborators) {
-              if (collab.id && collab.email && !usersMap.has(collab.id)) {
-                usersMap.set(collab.id, {
-                  id: collab.id,
-                  email: collab.email,
-                  name: collab.name || collab.email?.split("@")[0] || "Unknown",
-                });
-              }
-            }
-          }
-        } catch (error: any) {
-          // If we don't have permission to fetch collaborators, skip this base
-          logger.warn("Could not fetch collaborators for base", {
-            baseId: base.airtableBaseId,
-            error: error.message,
-          });
-        }
-      }
-
-      const users = Array.from(usersMap.values());
-
-      // Store users in database
-      for (const user of users) {
-        await User.findOneAndUpdate(
-          { airtableUserId: user.id },
-          {
-            airtableUserId: user.id,
-            email: user.email,
-            name: user.name || "",
-            userId,
-            updatedAt: new Date(),
-          },
-          { upsert: true, new: true }
-        );
-      }
-
-      logger.info("Fetched users from bases", {
-        userId,
-        count: users.length,
-        basesChecked: bases.length,
-      });
-
-      return {
-        users,
-        offset: undefined,
-        hasMore: false,
-      };
-    } catch (error) {
-      logger.error("Failed to fetch users", error, { userId });
-      // Don't throw - users are optional
-      return {
-        users: [],
-        offset: undefined,
-        hasMore: false,
-      };
-    }
-  }
-
-  /**
    * Get bases from MongoDB (cached data)
    */
   async getBasesFromDB(userId: string): Promise<BasesResponse> {
@@ -648,42 +559,7 @@ export class AirtableDataService {
   }
 
   /**
-   * Get users from MongoDB (cached data)
-   */
-  async getUsersFromDB(userId: string): Promise<UsersResponse> {
-    try {
-      logger.info("Fetching users from MongoDB", { userId });
-
-      const users = await User.find({ userId }).sort({ updatedAt: -1 });
-
-      const airtableUsers: AirtableUser[] = users.map((user) => ({
-        id: user.airtableUserId,
-        email: user.email,
-        name: user.name || user.email?.split("@")[0] || "Unknown",
-      }));
-
-      logger.info("Fetched users from MongoDB", {
-        userId,
-        count: airtableUsers.length,
-      });
-
-      return {
-        users: airtableUsers,
-        offset: undefined,
-        hasMore: false,
-      };
-    } catch (error) {
-      logger.error("Failed to fetch users from MongoDB", error, { userId });
-      return {
-        users: [],
-        offset: undefined,
-        hasMore: false,
-      };
-    }
-  }
-
-  /**
-   * Syncs all data: bases, tables, tickets, and users (with parallel batch processing)
+   * Syncs all data: bases, tables, and tickets (with parallel batch processing)
    * Fetches ALL pages from Airtable and stores everything in MongoDB
    */
   async syncAll(userId: string): Promise<SyncAllResponse> {
@@ -797,18 +673,11 @@ export class AirtableDataService {
       totalTables = baseResults.reduce((sum, r) => sum + r.tables, 0);
       totalTickets = baseResults.reduce((sum, r) => sum + r.tickets, 0);
 
-      // Step 5: Sync users from base collaborators (can run in parallel with bases)
-      logger.info("Step 5: Syncing users from base collaborators");
-      const usersResponse = await this.fetchUsers(userId);
-      const totalUsers = usersResponse.users.length;
-      logger.info(`Synced ${totalUsers} users`);
-
       logger.info("✅ Full sync completed successfully", {
         userId,
         totalBases,
         totalTables,
         totalTickets,
-        totalUsers,
         concurrencyUsed: {
           bases: baseConcurrency,
           tables: tableConcurrency,
@@ -821,7 +690,7 @@ export class AirtableDataService {
           bases: totalBases,
           tables: totalTables,
           tickets: totalTickets,
-          users: totalUsers,
+          users: 0,
         },
       };
     } catch (error) {

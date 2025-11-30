@@ -4,7 +4,7 @@ import {
   syncBases,
   syncTables,
   syncTickets,
-  syncUsers,
+  // syncUsers,
 } from "../controllers/syncController";
 
 const router = Router();
@@ -19,7 +19,7 @@ router.post("/tables", syncTables);
 router.post("/tickets", syncTickets);
 
 // POST /api/airtable/sync/users
-router.post("/users", syncUsers);
+// router.post("/users", syncUsers);
 
 // POST /api/airtable/sync/all
 router.post("/all", syncAll);

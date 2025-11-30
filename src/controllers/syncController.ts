@@ -146,32 +146,32 @@ export async function syncTickets(
  * When forceSync=true: Fetches from Airtable API and stores in MongoDB
  * When forceSync=false: Fetches from MongoDB cache
  */
-export async function syncUsers(
-  req: Request<unknown, unknown, SyncUsersRequest>,
-  res: Response
-): Promise<Response> {
-  try {
-    const { userId, forceSync } = req.body;
+// export async function syncUsers(
+//   req: Request<unknown, unknown, SyncUsersRequest>,
+//   res: Response
+// ): Promise<Response> {
+//   try {
+//     const { userId, forceSync } = req.body;
 
-    if (!userId) {
-      throw new ValidationError("userId is required");
-    }
+//     if (!userId) {
+//       throw new ValidationError("userId is required");
+//     }
 
-    let result;
+//     let result;
 
-    if (forceSync) {
-      logger.info("Syncing users from Airtable API (force sync)", { userId });
-      result = await AirtableDataService.fetchUsers(userId);
-    } else {
-      logger.info("Fetching users from MongoDB (cache mode)", { userId });
-      result = await AirtableDataService.getUsersFromDB(userId);
-    }
+//     if (forceSync) {
+//       logger.info("Syncing users from Airtable API (force sync)", { userId });
+//       result = await AirtableDataService.fetchUsers(userId);
+//     } else {
+//       logger.info("Fetching users from MongoDB (cache mode)", { userId });
+//       result = await AirtableDataService.getUsersFromDB(userId);
+//     }
 
-    return sendSuccessResponse(res, result);
-  } catch (error) {
-    return sendErrorResponse(res, error);
-  }
-}
+//     return sendSuccessResponse(res, result);
+//   } catch (error) {
+//     return sendErrorResponse(res, error);
+//   }
+// }
 
 /**
  * POST /api/airtable/sync/all
@@ -216,6 +216,6 @@ export default {
   syncBases,
   syncTables,
   syncTickets,
-  syncUsers,
+  // syncUsers,
   syncAll,
 };

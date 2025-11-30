@@ -5,12 +5,10 @@
     "main": "dist/server.js",
     "scripts": {
         "dev": "nodemon src/server.ts",
-        "dev:cluster": "nodemon src/server.cluster.ts",
         "build": "tsc",
         "start": "node dist/server.js",
-        "start:cluster": "node dist/server.cluster.js",
         "test": "echo \"Error: no test specified\" && exit 1",
-        "test:revision-worker": "ts-node src/scripts/test-revision-worker.ts"
+        "clear-oauth-tokens": "ts-node src/scripts/clear-oauth-tokens.ts"
     },
     "keywords": [
         "airtable",
