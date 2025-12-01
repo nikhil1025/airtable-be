@@ -19,9 +19,9 @@ router.use("/sync", syncRoutes);
 router.use("/cookies", cookieRoutes);
 router.use("/data", dataRoutes); // Real data routes (from database)
 router.use("/demo", demoRoutes); // Demo routes for testing data loading
-router.use("/revision-history-fetch", revisionHistoryFetchRoutes); // Fetch and store revision histories
+router.use("/revision-history", revisionHistoryFetchRoutes); // Fetch and store revision histories
 // router.use("/revision-history", revisionHistoryRoutes);
 // router.use("/revision-history-v2", revisionHistoryV2Routes); // NEW: Internal API implementation
-router.use("/revision-history", bulkRevisionRoutes); // BULK AUTOMATION
+router.use("/revision-history-bulk", bulkRevisionRoutes); // BULK AUTOMATION
 
 export default router;
