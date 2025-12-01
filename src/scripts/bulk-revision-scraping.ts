@@ -1,8 +1,8 @@
+import * as cheerio from "cheerio";
 import puppeteer, { Browser, Page } from "puppeteer";
 import { connectDatabase } from "../config/database";
 import { AirtableConnection, Ticket } from "../models";
 import { decrypt, isEncrypted } from "../utils/encryption";
-import * as cheerio from "cheerio";
 
 /**
  * BULK REVISION HISTORY SCRAPING SCRIPT
@@ -304,9 +304,7 @@ class BulkRevisionHistoryScraper {
         const columnHeader = $container.find(".micro.strong.caps");
         const columnType = columnHeader.text().trim();
         const columnId =
-          columnHeader.attr("columnid") ||
-          columnHeader.attr("columnId") ||
-          "";
+          columnHeader.attr("columnid") || columnHeader.attr("columnId") || "";
 
         if (!columnType) return;
 
@@ -417,14 +415,16 @@ class BulkRevisionHistoryScraper {
 
       // Navigate to record page first (for referer and cookies)
       const recordUrl = `https://airtable.com/${ticketData.baseId}/${ticketData.tableId}/viwfbZDPk6u7uvwdH/${recordId}?blocks=show`;
-      
+
       try {
         await this.page.goto(recordUrl, {
           waitUntil: "networkidle0",
           timeout: 30000,
         });
       } catch (navError) {
-        console.warn(`   ⚠️  Navigation timeout for ${recordId}, continuing...`);
+        console.warn(
+          `   ⚠️  Navigation timeout for ${recordId}, continuing...`
+        );
       }
 
       // Wait a bit for page to settle
@@ -529,9 +529,7 @@ class BulkRevisionHistoryScraper {
       const ticket = tickets[i];
       const recordId = ticket.airtableRecordId;
 
-      console.log(
-        `\n[${i + 1}/${tickets.length}] Processing: ${recordId}`
-      );
+      console.log(`\n[${i + 1}/${tickets.length}] Processing: ${recordId}`);
 
       try {
         const revisions = await this.scrapeRevisionHistoryForTicket(ticket);
@@ -592,7 +590,9 @@ class BulkRevisionHistoryScraper {
 
     for (const result of this.results) {
       if (result.status === "success" && result.revisions) {
-        console.log(`\n${result.recordId} - [${result.revisions.length} items]`);
+        console.log(
+          `\n${result.recordId} - [${result.revisions.length} items]`
+        );
         console.log(JSON.stringify(result.revisions, null, 2));
       } else if (result.status === "no_data") {
         console.log(`\n${result.recordId} - null`);
@@ -690,7 +690,9 @@ class BulkRevisionHistoryScraper {
 async function main() {
   const TEST_USER_ID = process.argv[2] || "user_1764525443009";
 
-  console.log(`\n📋 Running bulk revision history scraper for user: ${TEST_USER_ID}`);
+  console.log(
+    `\n📋 Running bulk revision history scraper for user: ${TEST_USER_ID}`
+  );
 
   const scraper = new BulkRevisionHistoryScraper(TEST_USER_ID);
 
