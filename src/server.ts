@@ -47,6 +47,26 @@ app.get("/health", simpleLogger, (_req: Request, res: Response) => {
 // Detailed API logging for all API routes
 app.use("/api/airtable", apiLogger);
 
+// Add detailed request logging for revision history endpoints
+app.use(
+  "/api/airtable/revision-history-fetch",
+  (req: Request, res: Response, next: NextFunction) => {
+    console.log(res);
+    console.log("\n" + "=".repeat(70));
+    console.log(`🌐 INCOMING API REQUEST`);
+    console.log("=".repeat(70));
+    console.log(`📍 Method: ${req.method}`);
+    console.log(`📍 Path: ${req.path}`);
+    console.log(
+      `📍 Full URL: ${req.protocol}://${req.get("host")}${req.originalUrl}`
+    );
+    console.log(`📍 Params:`, req.params);
+    console.log(`⏰ Time: ${new Date().toISOString()}`);
+    console.log("=".repeat(70) + "\n");
+    next();
+  }
+);
+
 // API routes
 app.use("/api/airtable", routes);
 

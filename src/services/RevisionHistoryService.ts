@@ -30,6 +30,13 @@ export class RevisionHistoryService {
     viewId?: string
   ): Promise<RevisionHistoryResponse> {
     try {
+      console.log(`\n${'='.repeat(70)}`);
+      console.log(`[RevisionHistoryService] 🚀 Starting fetchRevisionHistory`);
+      console.log(`[RevisionHistoryService] 👤 User: ${userId}`);
+      console.log(`[RevisionHistoryService] 📝 Record: ${recordId}`);
+      console.log(`[RevisionHistoryService] 📊 Base: ${baseId}, Table: ${tableId}`);
+      console.log(`${'='.repeat(70)}\n`);
+
       logger.info("Fetching revision history via web scraping", {
         userId,
         recordId,
@@ -37,27 +44,35 @@ export class RevisionHistoryService {
       });
 
       // Get cookies for authentication
+      console.log(`[RevisionHistoryService] 🍪 Step 1: Fetching cookies from DB...`);
       const cookiesData = await CookieScraperService.getCookiesFromDB(userId);
       if (!cookiesData || cookiesData.length === 0) {
+        console.error(`[RevisionHistoryService] ❌ No cookies found for user ${userId}`);
         throw new AppError(
           "No cookies found for user - please login first",
           401,
           "NO_COOKIES"
         );
       }
+      console.log(`[RevisionHistoryService] ✅ Cookies retrieved: ${cookiesData.length} items`);
 
       // Get localStorage data
+      console.log(`[RevisionHistoryService] 💾 Step 2: Fetching localStorage from DB...`);
       const localStorageData = await CookieScraperService.getLocalStorageFromDB(
         userId
       );
+      console.log(`[RevisionHistoryService] ✅ localStorage retrieved: ${Object.keys(localStorageData).length} keys`);
       logger.info("Retrieved localStorage for user", {
         userId,
         itemCount: Object.keys(localStorageData).length,
       });
 
       // Use Worker Pool to scrape revision history
+      console.log(`[RevisionHistoryService] 🔧 Step 3: Initializing worker pool...`);
       const workerPool = CookieScraperService.getWorkerPoolInstance();
+      console.log(`[RevisionHistoryService] ✅ Worker pool ready`);
 
+      console.log(`[RevisionHistoryService] 🌐 Step 4: Executing scraping task...`);
       const result = await workerPool.execute<{
         success: boolean;
         html?: string;
@@ -78,18 +93,23 @@ export class RevisionHistoryService {
       });
 
       if (!result.success) {
+        console.error(`[RevisionHistoryService] ❌ Scraping failed: ${result.error}`);
         throw new AppError(
           result.error || "Failed to scrape revision history",
           500,
           "SCRAPING_FAILED"
         );
       }
+      console.log(`[RevisionHistoryService] ✅ Scraping completed successfully`);
 
       // Parse the HTML to extract revision changes
+      console.log(`[RevisionHistoryService] 📄 Step 5: Parsing HTML/DOM data...`);
       let parsedRevisions: RevisionChange[] = [];
 
       if (result.html) {
+        console.log(`[RevisionHistoryService] 🔍 Parsing HTML (${result.html.length} chars)...`);
         parsedRevisions = parseRevisionHistoryHTML(result.html);
+        console.log(`[RevisionHistoryService] ✅ HTML parsing complete: ${parsedRevisions.length} revisions`);
       }
 
       // If HTML parsing didn't find anything but we got structured data from DOM, convert it
@@ -98,6 +118,7 @@ export class RevisionHistoryService {
         result.revisions &&
         result.revisions.length > 0
       ) {
+        console.log(`[RevisionHistoryService] 🔄 HTML parsing empty, converting DOM data (${result.revisions.length} items)...`);
         logger.info("HTML parsing returned empty, using DOM extracted data", {
           count: result.revisions.length,
           sampleData: result.revisions.slice(0, 2), // Log first 2 items for debugging
@@ -134,11 +155,17 @@ export class RevisionHistoryService {
         });
       }
 
+      console.log(`[RevisionHistoryService] 📊 Final count: ${parsedRevisions.length} revisions`);
       logger.info("Revision history fetched successfully", {
         recordId,
         revisionsCount: parsedRevisions.length,
         rawDOMCount: result.revisions?.length || 0,
       });
+
+      console.log(`\n${'='.repeat(70)}`);
+      console.log(`[RevisionHistoryService] ✅ FETCH COMPLETE`);
+      console.log(`[RevisionHistoryService] 📈 Result: ${parsedRevisions.length} revisions fetched`);
+      console.log(`${'='.repeat(70)}\n`);
 
       return {
         success: true,
@@ -146,6 +173,7 @@ export class RevisionHistoryService {
         message: `Fetched ${parsedRevisions.length} revision(s)`,
       };
     } catch (error) {
+      console.error(`[RevisionHistoryService] ❌ ERROR in fetchRevisionHistory:`, error);
       logger.error("Failed to fetch revision history", error, {
         userId,
         recordId,
@@ -283,6 +311,13 @@ export class RevisionHistoryService {
     tableId?: string
   ): Promise<SyncRevisionHistoryResponse> {
     try {
+      console.log(`\n${'='.repeat(70)}`);
+      console.log(`[RevisionHistoryService] 🔄 Starting syncRevisionHistory`);
+      console.log(`[RevisionHistoryService] 👤 User: ${userId}`);
+      if (baseId) console.log(`[RevisionHistoryService] 📊 Base: ${baseId}`);
+      if (tableId) console.log(`[RevisionHistoryService] 📋 Table: ${tableId}`);
+      console.log(`${'='.repeat(70)}\n`);
+
       logger.info(
         "Starting revision history sync - fetching record IDs from tickets DB",
         {
@@ -298,11 +333,13 @@ export class RevisionHistoryService {
       if (tableId) query.tableId = tableId;
 
       // Step 1: Fetch all tickets with record IDs from database
+      console.log(`[RevisionHistoryService] 🎫 Step 1: Fetching tickets from DB...`);
       const tickets = await Ticket.find(query)
         .select("airtableRecordId baseId tableId rowId fields")
         .lean();
 
       if (tickets.length === 0) {
+        console.log(`[RevisionHistoryService] ⚠️  No tickets found`);
         logger.info("No tickets found in database for sync", {
           userId,
           baseId,
@@ -316,6 +353,7 @@ export class RevisionHistoryService {
           errors: [],
         };
       }
+      console.log(`[RevisionHistoryService] ✅ Found ${tickets.length} tickets`);
 
       logger.info("Found tickets with record IDs in database", {
         count: tickets.length,
@@ -361,6 +399,8 @@ export class RevisionHistoryService {
       let totalFailed = 0;
       const errors: Array<{ recordId: string; error: string }> = [];
 
+      console.log(`[RevisionHistoryService] 🚀 Step 3: Starting batch processing`);
+      console.log(`[RevisionHistoryService] 📦 Total batches: ${batches.length}, Batch size: ${batchSize}`);
       logger.info("Starting background revision history extraction", {
         totalBatches: batches.length,
         batchSize,
@@ -368,6 +408,7 @@ export class RevisionHistoryService {
 
       for (let i = 0; i < batches.length; i++) {
         const batch = batches[i];
+        console.log(`\n[RevisionHistoryService] 📌 Processing batch ${i + 1}/${batches.length} (${batch.length} tickets)...`);
         logger.info("Processing revision history batch in background", {
           batchNumber: i + 1,
           totalBatches: batches.length,
@@ -379,6 +420,7 @@ export class RevisionHistoryService {
           userId
         );
 
+        console.log(`[RevisionHistoryService] ✅ Batch ${i + 1} complete: ${batchResult.successful} success, ${batchResult.failed} failed`);
         totalProcessed += batchResult.processed;
         totalSynced += batchResult.successful;
         totalFailed += batchResult.failed;
@@ -396,6 +438,13 @@ export class RevisionHistoryService {
         }
       }
 
+      console.log(`\n${'='.repeat(70)}`);
+      console.log(`[RevisionHistoryService] ✅ SYNC COMPLETE`);
+      console.log(`[RevisionHistoryService] 📊 Processed: ${totalProcessed}`);
+      console.log(`[RevisionHistoryService] ✅ Synced: ${totalSynced}`);
+      console.log(`[RevisionHistoryService] ❌ Failed: ${totalFailed}`);
+      console.log(`${'='.repeat(70)}\n`);
+
       logger.info("Revision history sync completed", {
         userId,
         totalProcessed,
@@ -411,6 +460,7 @@ export class RevisionHistoryService {
         errors,
       };
     } catch (error) {
+      console.error(`[RevisionHistoryService] ❌ ERROR in syncRevisionHistory:`, error);
       logger.error("Failed to sync revision history", error, { userId });
       throw handleScrapingError(error);
     }
@@ -430,6 +480,7 @@ export class RevisionHistoryService {
     }>,
     userId: string
   ): Promise<BatchProcessResult> {
+    console.log(`[RevisionHistoryService] 🔧 processRevisionHistoryBatch: Processing ${tickets.length} tickets...`);
     const results = {
       processed: 0,
       successful: 0,
@@ -440,6 +491,7 @@ export class RevisionHistoryService {
     // Use lower concurrency for revision history scraping to avoid overwhelming the server
     const concurrency = 3; // Conservative approach for web scraping
 
+    console.log(`[RevisionHistoryService] ⚙️  Concurrency level: ${concurrency}`);
     logger.info("Starting background revision history batch processing", {
       totalTickets: tickets.length,
       concurrency,
@@ -687,6 +739,7 @@ export class RevisionHistoryService {
   ): Promise<number> {
     let savedCount = 0;
 
+    console.log(`[RevisionHistoryService] 💾 Saving ${revisions.length} revisions to MongoDB...`);
     logger.info("Starting to save revisions to MongoDB", {
       count: revisions.length,
       userId,
@@ -732,6 +785,7 @@ export class RevisionHistoryService {
       }
     }
 
+    console.log(`[RevisionHistoryService] ✅ Saved ${savedCount}/${revisions.length} revisions to MongoDB`);
     logger.info("Finished saving revisions to MongoDB", {
       savedCount,
       totalAttempted: revisions.length,
