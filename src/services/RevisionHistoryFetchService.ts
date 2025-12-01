@@ -117,6 +117,94 @@ export class RevisionHistoryFetchService {
   }
 
   /**
+   * Scrape revision history for a single record
+   */
+  async scrapeSingleRecord(
+    recordId: string,
+    baseId: string,
+    tableId: string
+  ): Promise<RevisionHistoryItem[]> {
+    try {
+      console.log(
+        `[RevisionHistoryFetchService] 🎯 Scraping single record: ${recordId}`
+      );
+
+      // Fetch cookies
+      const cookiesFetched = await this.fetchCookiesFromDB();
+      if (!cookiesFetched) {
+        throw new Error("Could not fetch cookies");
+      }
+
+      // Initialize a single worker
+      this.poolSize = 1;
+      this.initializeWorkerPool();
+
+      // Create ticket data for the single record
+      const ticketData: TicketData = {
+        airtableRecordId: recordId,
+        rowId: recordId,
+        baseId: baseId,
+        tableId: tableId,
+        fields: {},
+      };
+
+      console.log(
+        `[RevisionHistoryFetchService] 📤 Sending scrape task to worker...`
+      );
+
+      // Process with worker
+      const revisions = await this.processTicketWithWorker(ticketData, 0);
+
+      // Terminate worker
+      await this.terminateWorkerPool();
+
+      if (revisions && revisions.length > 0) {
+        console.log(
+          `[RevisionHistoryFetchService] ✅ Successfully scraped ${revisions.length} revisions`
+        );
+
+        // Store revisions in database
+        const bulkOps = revisions.map((revision: RevisionHistoryItem) => ({
+          updateOne: {
+            filter: { uuid: revision.uuid },
+            update: {
+              $set: {
+                ...revision,
+                userId: this.userId,
+                baseId: baseId,
+                tableId: tableId,
+                updatedAt: new Date(),
+              },
+            },
+            upsert: true,
+          },
+        }));
+
+        if (bulkOps.length > 0) {
+          await RevisionHistory.bulkWrite(bulkOps);
+          console.log(
+            `[RevisionHistoryFetchService] 💾 Stored ${bulkOps.length} revisions in database`
+          );
+        }
+
+        return revisions;
+      } else {
+        console.log(
+          `[RevisionHistoryFetchService] ℹ️  No revisions found for record ${recordId}`
+        );
+        return [];
+      }
+    } catch (error) {
+      console.error(
+        `[RevisionHistoryFetchService] Error scraping single record:`,
+        error
+      );
+      await this.terminateWorkerPool();
+      throw error;
+    }
+  }
+
+  /**
    * Process a ticket using worker thread
    */
   private processTicketWithWorker(

@@ -1,7 +1,10 @@
 import { Router } from "express";
 import {
   fetchRevisionHistoriesForUser,
+  getAllRevisionsFlat,
+  getRecordRevisions,
   getRevisionHistoriesForUser,
+  scrapeSingleRecord,
 } from "../controllers/revisionHistoryFetchController";
 
 const router = Router();
@@ -19,5 +22,29 @@ router.get("/fetch/:userId", fetchRevisionHistoriesForUser);
  * @access  Public (should be protected in production)
  */
 router.get("/user/:userId", getRevisionHistoriesForUser);
+
+/**
+ * @route   GET /api/revision-history/all/:userId
+ * @desc    Get all revision histories as flat array (no grouping)
+ * @access  Public (should be protected in production)
+ * @query   limit, skip, sortBy, sortOrder
+ */
+router.get("/all/:userId", getAllRevisionsFlat);
+
+/**
+ * @route   GET /api/revision-history/record/:recordId
+ * @desc    Get revision history for a specific record
+ * @access  Public (should be protected in production)
+ * @query   userId, limit, sortBy, sortOrder
+ */
+router.get("/record/:recordId", getRecordRevisions);
+
+/**
+ * @route   POST /api/revision-history/scrape/record
+ * @desc    Scrape revision history for a single record
+ * @access  Public (should be protected in production)
+ * @body    userId, recordId, baseId, tableId
+ */
+router.post("/scrape/record", scrapeSingleRecord);
 
 export default router;

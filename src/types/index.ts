@@ -291,7 +291,11 @@ export interface RevisionHistoryDocument {
   newValue: string;
   createdDate: Date;
   authoredBy: string;
+  authorName?: string;
+  baseId: string;
+  tableId: string;
   userId: string;
+  rawData?: any;
   createdAt: Date;
   updatedAt: Date;
 }
