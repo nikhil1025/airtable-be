@@ -1,13 +1,16 @@
-import * as cheerio from "cheerio";
-import puppeteer, { Browser, Page } from "puppeteer";
+import * as os from "os";
+import * as path from "path";
+import { Worker } from "worker_threads";
 import { AirtableConnection, RevisionHistory, Ticket } from "../models";
 import { decrypt, isEncrypted } from "../utils/encryption";
 
 /**
- * REVISION HISTORY FETCH SERVICE
+ * REVISION HISTORY FETCH SERVICE (WORKER THREAD VERSION)
  *
- * This service fetches revision histories for all tickets of a user,
- * stores them in MongoDB RevisionHistory collection, and returns the results.
+ * This service fetches revision histories for all tickets of a user using worker threads
+ * for parallel processing, stores them in MongoDB RevisionHistory collection, and returns the results.
+ *
+ * PERFORMANCE: Uses worker thread pool to process multiple tickets concurrently
  */
 
 interface RevisionHistoryItem {
@@ -29,13 +32,129 @@ interface TicketData {
 }
 
 export class RevisionHistoryFetchService {
-  private browser: Browser | null = null;
-  private page: Page | null = null;
   private userId: string;
   private cookies: string = "";
+  private workerPool: Worker[] = [];
+  private poolSize: number;
 
   constructor(userId: string) {
     this.userId = userId;
+    // Use CPU cores - 1 for optimal performance, minimum 2, maximum 8
+    this.poolSize = Math.min(Math.max(os.cpus().length - 1, 2), 8);
+    console.log(
+      `[RevisionHistoryFetchService] 🚀 Initialized with ${this.poolSize} worker threads`
+    );
+  }
+
+  /**
+   * Initialize worker pool
+   */
+  private initializeWorkerPool(): void {
+    console.log(
+      `[RevisionHistoryFetchService] 🔧 Initializing ${this.poolSize} workers...`
+    );
+
+    const workerPath = path.resolve(
+      __dirname,
+      "../workers/revisionHistoryWorker.js"
+    );
+
+    // Check if compiled .js exists, otherwise use .ts for development
+    const tsWorkerPath = path.resolve(
+      __dirname,
+      "../workers/revisionHistoryWorker.ts"
+    );
+
+    for (let i = 0; i < this.poolSize; i++) {
+      const worker = new Worker(
+        require("fs").existsSync(workerPath) ? workerPath : tsWorkerPath,
+        {
+          execArgv: require("fs").existsSync(workerPath)
+            ? []
+            : ["-r", "ts-node/register"],
+        }
+      );
+
+      worker.on("error", (error) => {
+        console.error(
+          `[RevisionHistoryFetchService] ❌ Worker ${i} error:`,
+          error
+        );
+      });
+
+      worker.on("exit", (code) => {
+        if (code !== 0) {
+          console.warn(
+            `[RevisionHistoryFetchService] ⚠️  Worker ${i} exited with code ${code}`
+          );
+        }
+      });
+
+      this.workerPool.push(worker);
+    }
+
+    console.log(
+      `[RevisionHistoryFetchService] ✅ Worker pool initialized with ${this.poolSize} workers`
+    );
+  }
+
+  /**
+   * Terminate worker pool
+   */
+  private async terminateWorkerPool(): Promise<void> {
+    console.log(
+      `[RevisionHistoryFetchService] 🛑 Terminating ${this.workerPool.length} workers...`
+    );
+
+    await Promise.all(
+      this.workerPool.map(async (worker) => {
+        await worker.terminate();
+      })
+    );
+
+    this.workerPool = [];
+    console.log(`[RevisionHistoryFetchService] ✅ Worker pool terminated`);
+  }
+
+  /**
+   * Process a ticket using worker thread
+   */
+  private processTicketWithWorker(
+    ticketData: TicketData,
+    workerId: number
+  ): Promise<RevisionHistoryItem[] | null> {
+    return new Promise((resolve, reject) => {
+      const worker = this.workerPool[workerId % this.poolSize];
+
+      const messageHandler = (result: any) => {
+        worker.removeListener("message", messageHandler);
+        worker.removeListener("error", errorHandler);
+
+        if (result.success) {
+          resolve(result.revisions);
+        } else {
+          reject(new Error(result.error || "Worker failed"));
+        }
+      };
+
+      const errorHandler = (error: Error) => {
+        worker.removeListener("message", messageHandler);
+        worker.removeListener("error", errorHandler);
+        reject(error);
+      };
+
+      worker.once("message", messageHandler);
+      worker.once("error", errorHandler);
+
+      worker.postMessage({
+        type: "scrapeRevisionHistory",
+        data: {
+          ticketData,
+          cookies: this.cookies,
+          workerId: workerId % this.poolSize,
+        },
+      });
+    });
   }
 
   /**
@@ -112,145 +231,12 @@ export class RevisionHistoryFetchService {
   }
 
   /**
-   * Launch browser
-   */
-  private async launchBrowser(): Promise<boolean> {
-    try {
-      console.log(
-        "\n[RevisionHistoryFetchService] 🌐 Step 2: Launching Chrome browser..."
-      );
-      console.log(
-        "[RevisionHistoryFetchService] 🔧 Browser config: headless=true, executablePath=/usr/bin/google-chrome"
-      );
-
-      this.browser = await puppeteer.launch({
-        headless: true,
-        executablePath: "/usr/bin/google-chrome",
-        args: [
-          "--no-sandbox",
-          "--disable-setuid-sandbox",
-          "--disable-dev-shm-usage",
-          "--disable-accelerated-2d-canvas",
-          "--disable-gpu",
-          "--window-size=1920,1080",
-          "--disable-web-security",
-          "--disable-features=IsolateOrigins,site-per-process",
-          "--allow-running-insecure-content",
-          "--disable-blink-features=AutomationControlled",
-          "--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
-        ],
-        defaultViewport: {
-          width: 1920,
-          height: 1080,
-        },
-        ignoreDefaultArgs: ["--enable-automation"],
-      });
-
-      console.log(
-        "[RevisionHistoryFetchService] ✅ Browser launched successfully"
-      );
-
-      this.page = await this.browser.newPage();
-      console.log("[RevisionHistoryFetchService] ✅ New page created");
-
-      // Enable request interception
-      console.log(
-        "[RevisionHistoryFetchService] 🔧 Setting up request interception..."
-      );
-      await this.page.setRequestInterception(true);
-      this.page.on("request", (request) => {
-        request.continue();
-      });
-
-      // Override navigator.webdriver
-      console.log(
-        "[RevisionHistoryFetchService] 🤖 Overriding navigator.webdriver..."
-      );
-      await this.page.evaluateOnNewDocument(() => {
-        Object.defineProperty(navigator, "webdriver", {
-          get: () => false,
-        });
-        (window as any).chrome = { runtime: {} };
-      });
-
-      // Set headers
-      console.log("[RevisionHistoryFetchService] 📋 Setting HTTP headers...");
-      await this.page.setExtraHTTPHeaders({
-        "accept-language": "en-GB,en-US;q=0.9,en;q=0.8",
-        "accept-encoding": "gzip, deflate, br, zstd",
-        accept:
-          "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-        "cache-control": "no-cache",
-        pragma: "no-cache",
-        "sec-ch-ua":
-          '"Chromium";v="142", "Google Chrome";v="142", "Not_A Brand";v="99"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": '"Linux"',
-      });
-
-      // Set cookies
-      const cookieObjects = this.cookies
-        .split(";")
-        .map((cookie) => {
-          const [name, ...valueParts] = cookie.trim().split("=");
-          const value = valueParts.join("=");
-
-          if (!name || !value) return null;
-
-          const isHostPrefixed = name.trim().startsWith("__Host-");
-
-          return {
-            name: name.trim(),
-            value: value.trim(),
-            domain: isHostPrefixed ? "airtable.com" : ".airtable.com",
-            path: "/",
-            httpOnly: true,
-            secure: true,
-            sameSite: "None" as const,
-          };
-        })
-        .filter((c) => c !== null);
-
-      console.log(
-        `[RevisionHistoryFetchService] 🍪 Setting ${cookieObjects.length} cookies...`
-      );
-      let successCount = 0;
-      for (const cookie of cookieObjects) {
-        try {
-          await this.page.setCookie(cookie as any);
-          successCount++;
-        } catch (error) {
-          console.warn(
-            `[RevisionHistoryFetchService] ⚠️  Failed to set cookie: ${
-              cookie!.name
-            }`
-          );
-        }
-      }
-
-      console.log(
-        `[RevisionHistoryFetchService] ✅ ${successCount}/${cookieObjects.length} cookies set successfully`
-      );
-      console.log(
-        `[RevisionHistoryFetchService] 🚀 Browser ready for scraping!`
-      );
-      return true;
-    } catch (error) {
-      console.error(
-        "[RevisionHistoryFetchService] Error launching browser:",
-        error
-      );
-      return false;
-    }
-  }
-
-  /**
    * Fetch all tickets from MongoDB
    */
   private async fetchAllTickets(): Promise<TicketData[]> {
     try {
       console.log(
-        `\n[RevisionHistoryFetchService] 🎫 Step 3: Fetching all tickets for user: ${this.userId}`
+        `\n[RevisionHistoryFetchService] 🎫 Step 2: Fetching all tickets for user: ${this.userId}`
       );
 
       const tickets = await Ticket.find({ userId: this.userId }).select(
@@ -278,302 +264,22 @@ export class RevisionHistoryFetchService {
   }
 
   /**
-   * Parse HTML from diffRowHtml
+   * Main execution: Fetch all revision histories using worker threads and store in MongoDB
    */
-  private parseHTMLDiff(html: string): Array<{
-    columnType: string;
-    columnId: string;
-    oldValue: string | null;
-    newValue: string | null;
-  }> {
-    const changes: Array<{
-      columnType: string;
-      columnId: string;
-      oldValue: string | null;
-      newValue: string | null;
-    }> = [];
-
-    try {
-      const $ = cheerio.load(html);
-
-      $(".historicalCellContainer").each((_index, container) => {
-        const $container = $(container);
-        const columnHeader = $container.find(".micro.strong.caps");
-        const columnType = columnHeader.text().trim();
-        const columnId =
-          columnHeader.attr("columnid") || columnHeader.attr("columnId") || "";
-
-        if (!columnType) return;
-
-        const isNullToValue = $container.find(".nullToValue").length > 0;
-        const isDiff = $container.find(".diff").length > 0;
-
-        let oldValue: string | null = null;
-        let newValue: string | null = null;
-
-        if (isNullToValue) {
-          oldValue = null;
-          const successElement = $container.find(".colors-background-success");
-          newValue = successElement.text().trim();
-
-          const textDiff = $container.find(".textDiff");
-          if (textDiff.length > 0) {
-            const addedText = textDiff
-              .find(".colors-background-success")
-              .text()
-              .trim();
-            if (addedText) newValue = addedText;
-          }
-        } else if (isDiff) {
-          const negativeElement = $container.find(
-            ".colors-background-negative, .strikethrough.colors-foreground-accent-negative"
-          );
-          const successElement = $container.find(".colors-background-success");
-
-          oldValue = negativeElement.first().text().trim();
-          newValue = successElement.last().text().trim();
-
-          const textDiff = $container.find(".textDiff");
-          if (textDiff.length > 0) {
-            const removedText = textDiff
-              .find(".colors-background-negative")
-              .text()
-              .trim();
-            const addedText = textDiff
-              .find(".colors-background-success")
-              .text()
-              .trim();
-            if (removedText) oldValue = removedText;
-            if (addedText) newValue = addedText;
-          }
-        }
-
-        if (oldValue !== null || newValue !== null) {
-          changes.push({
-            columnType,
-            columnId,
-            oldValue,
-            newValue,
-          });
-        }
-      });
-    } catch (error) {
-      console.error(
-        "[RevisionHistoryFetchService] Error parsing HTML diff:",
-        error
-      );
-    }
-
-    return changes;
-  }
-
   /**
-   * Generate random string for request IDs
-   */
-  private generateRandomString(length: number): string {
-    const chars =
-      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    let result = "";
-    for (let i = 0; i < length; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return result;
-  }
-
-  /**
-   * Scrape revision history for a single ticket
-   */
-  private async scrapeRevisionHistoryForTicket(
-    ticketData: TicketData
-  ): Promise<RevisionHistoryItem[] | null> {
-    try {
-      if (!this.page) {
-        throw new Error("Browser page not initialized");
-      }
-
-      const recordId = ticketData.airtableRecordId;
-      console.log(
-        `[RevisionHistoryFetchService]   🔍 Scraping record: ${recordId}`
-      );
-
-      // Build API URL
-      const stringifiedObjectParams = JSON.stringify({
-        limit: 100,
-        offsetV2: null,
-        shouldReturnDeserializedActivityItems: true,
-        shouldIncludeRowActivityOrCommentUserObjById: true,
-      });
-
-      const requestId = `req${this.generateRandomString(16)}`;
-      const secretSocketId = `soc${this.generateRandomString(16)}`;
-
-      const apiUrl = `https://airtable.com/v0.3/row/${recordId}/readRowActivitiesAndComments`;
-      const params = new URLSearchParams({
-        stringifiedObjectParams,
-        requestId,
-        secretSocketId,
-      });
-
-      const fullUrl = `${apiUrl}?${params.toString()}`;
-      console.log(
-        `[RevisionHistoryFetchService]   📡 Making API request to fetch revision history...`
-      );
-
-      // Navigate to record page first (for referer and cookies)
-      const recordUrl = `https://airtable.com/${ticketData.baseId}/${ticketData.tableId}/viwfbZDPk6u7uvwdH/${recordId}?blocks=show`;
-
-      console.log(
-        `[RevisionHistoryFetchService]   🌐 Navigating to record page...`
-      );
-      try {
-        await this.page.goto(recordUrl, {
-          waitUntil: "networkidle0",
-          timeout: 30000,
-        });
-        console.log(
-          `[RevisionHistoryFetchService]   ✅ Page loaded successfully`
-        );
-      } catch (navError) {
-        console.warn(
-          `[RevisionHistoryFetchService]   ⚠️  Navigation timeout for ${recordId}, continuing...`
-        );
-      }
-
-      // Wait a bit for page to settle
-      console.log(
-        `[RevisionHistoryFetchService]   ⏳ Waiting 2s for page to settle...`
-      );
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      // Make API request
-      const response = await this.page.evaluate(
-        async (url, baseId) => {
-          try {
-            const res = await fetch(url, {
-              method: "GET",
-              headers: {
-                accept: "application/json, text/javascript, */*; q=0.01",
-                "x-airtable-application-id": baseId,
-                "x-airtable-inter-service-client": "webClient",
-                "x-time-zone": "Asia/Calcutta",
-                "x-requested-with": "XMLHttpRequest",
-              },
-              credentials: "include",
-            });
-
-            const data = await res.json();
-            return {
-              ok: res.ok,
-              status: res.status,
-              statusText: res.statusText,
-              data: data,
-            };
-          } catch (error: any) {
-            return {
-              ok: false,
-              status: 0,
-              statusText: "Network Error",
-              error: error.message,
-            };
-          }
-        },
-        fullUrl,
-        ticketData.baseId
-      );
-
-      if (!response.ok) {
-        console.error(
-          `[RevisionHistoryFetchService]   ❌ API request failed (Status ${response.status}): ${response.statusText}`
-        );
-        return null;
-      }
-
-      console.log(
-        `[RevisionHistoryFetchService]   ✅ API response received (Status 200)`
-      );
-
-      // Parse revision history
-      const revisions: RevisionHistoryItem[] = [];
-
-      if (!response.data || !response.data.data) {
-        return null;
-      }
-
-      const activityInfoById = response.data.data.rowActivityInfoById || {};
-      const activityIds = Object.keys(activityInfoById);
-
-      console.log(
-        `[RevisionHistoryFetchService]   📊 Found ${activityIds.length} activities`
-      );
-
-      if (activityIds.length === 0) {
-        console.log(
-          `[RevisionHistoryFetchService]   ⚪ No revision history for this record`
-        );
-        return null; // No revision history
-      }
-
-      // Parse each activity
-      console.log(
-        `[RevisionHistoryFetchService]   🔍 Parsing HTML from ${activityIds.length} activities...`
-      );
-      for (const activityId of activityIds) {
-        const activity = activityInfoById[activityId];
-        const userId = activity.originatingUserId;
-
-        if (activity.diffRowHtml) {
-          const changes = this.parseHTMLDiff(activity.diffRowHtml);
-          console.log(
-            `[RevisionHistoryFetchService]     📝 Activity ${activityId}: Found ${changes.length} field changes`
-          );
-
-          for (const change of changes) {
-            revisions.push({
-              uuid: activityId,
-              issueId: recordId,
-              columnType: change.columnType,
-              oldValue: change.oldValue,
-              newValue: change.newValue,
-              createdDate: new Date(activity.createdTime),
-              authoredBy: userId,
-            });
-          }
-        }
-      }
-
-      console.log(
-        `[RevisionHistoryFetchService]   ✅ Total revisions parsed: ${revisions.length}`
-      );
-      return revisions.length > 0 ? revisions : null;
-    } catch (error) {
-      console.error(
-        `[RevisionHistoryFetchService] Error scraping record:`,
-        error
-      );
-      throw error;
-    }
-  }
-
-  /**
-   * Cleanup
-   */
-  private async cleanup(): Promise<void> {
-    if (this.browser) {
-      await this.browser.close();
-      console.log("[RevisionHistoryFetchService] Browser closed");
-    }
-  }
-
-  /**
-   * Main execution: Fetch all revision histories and store in MongoDB
+   * Main execution: Fetch all revision histories using worker threads and store in MongoDB
    */
   async fetchAndStoreRevisionHistories(): Promise<any[]> {
+    const startTime = Date.now();
     try {
       console.log(`\n${"=".repeat(70)}`);
       console.log(
-        `[RevisionHistoryFetchService] 🚀 STARTING REVISION HISTORY FETCH`
+        `[RevisionHistoryFetchService] 🚀 STARTING REVISION HISTORY FETCH (WORKER THREAD MODE)`
       );
       console.log(`[RevisionHistoryFetchService] 👤 User ID: ${this.userId}`);
+      console.log(
+        `[RevisionHistoryFetchService] 🧵 Worker threads: ${this.poolSize}`
+      );
       console.log(
         `[RevisionHistoryFetchService] ⏰ Started at: ${new Date().toISOString()}`
       );
@@ -585,11 +291,8 @@ export class RevisionHistoryFetchService {
         throw new Error("Could not fetch cookies");
       }
 
-      // Launch browser
-      const browserLaunched = await this.launchBrowser();
-      if (!browserLaunched) {
-        throw new Error("Could not launch browser");
-      }
+      // Initialize worker pool
+      this.initializeWorkerPool();
 
       // Fetch all tickets
       const tickets = await this.fetchAllTickets();
@@ -597,42 +300,65 @@ export class RevisionHistoryFetchService {
         console.log(
           `[RevisionHistoryFetchService] ⚠️  No tickets found, exiting...`
         );
-        await this.cleanup();
+        await this.terminateWorkerPool();
         return [];
       }
 
       console.log(`\n${"=".repeat(70)}`);
       console.log(
-        `[RevisionHistoryFetchService] 🔄 Step 4: PROCESSING ${tickets.length} TICKETS`
+        `[RevisionHistoryFetchService] 🔄 Step 3: PROCESSING ${tickets.length} TICKETS WITH ${this.poolSize} WORKERS`
       );
       console.log(`${"=".repeat(70)}\n`);
 
       const allRevisions: any[] = [];
+      const batchSize = this.poolSize; // Process in batches equal to pool size
+      let processedCount = 0;
+      let successCount = 0;
+      let failedCount = 0;
 
-      // Process all tickets
-      for (let i = 0; i < tickets.length; i++) {
-        const ticket = tickets[i];
-        const recordId = ticket.airtableRecordId;
+      // Process tickets in batches
+      for (let i = 0; i < tickets.length; i += batchSize) {
+        const batch = tickets.slice(i, i + batchSize);
+        const batchNumber = Math.floor(i / batchSize) + 1;
+        const totalBatches = Math.ceil(tickets.length / batchSize);
 
         console.log(
-          `\n[RevisionHistoryFetchService] 📌 [${i + 1}/${
-            tickets.length
-          }] Processing: ${recordId}`
+          `\n[RevisionHistoryFetchService] 📦 Processing batch ${batchNumber}/${totalBatches} (${batch.length} tickets in parallel)...`
         );
 
-        try {
-          const revisions = await this.scrapeRevisionHistoryForTicket(ticket);
+        // Process batch in parallel using worker threads
+        const batchPromises = batch.map((ticket, idx) =>
+          this.processTicketWithWorker(ticket, i + idx)
+            .then((revisions) => ({ ticket, revisions, success: true }))
+            .catch((error) => ({ ticket, error, success: false }))
+        );
 
-          if (revisions && revisions.length > 0) {
+        const batchResults = await Promise.all(batchPromises);
+
+        // Process results
+        for (const result of batchResults) {
+          processedCount++;
+          const recordId = result.ticket.airtableRecordId;
+
+          console.log(
+            `\n[RevisionHistoryFetchService] 📌 [${processedCount}/${tickets.length}] ${recordId}`
+          );
+
+          if (
+            result.success &&
+            "revisions" in result &&
+            result.revisions &&
+            result.revisions.length > 0
+          ) {
             console.log(
-              `[RevisionHistoryFetchService] ✅ Found ${revisions.length} revision items for ${recordId}`
+              `[RevisionHistoryFetchService] ✅ Found ${result.revisions.length} revision items`
             );
 
             // Store in MongoDB
             console.log(
-              `[RevisionHistoryFetchService] 💾 Storing ${revisions.length} revisions in MongoDB...`
+              `[RevisionHistoryFetchService] 💾 Storing ${result.revisions.length} revisions...`
             );
-            for (const revision of revisions) {
+            for (const revision of result.revisions) {
               try {
                 const revisionDoc = await RevisionHistory.findOneAndUpdate(
                   { uuid: revision.uuid, issueId: revision.issueId },
@@ -644,8 +370,8 @@ export class RevisionHistoryFetchService {
                     newValue: revision.newValue || "",
                     createdDate: revision.createdDate,
                     authoredBy: revision.authoredBy,
-                    baseId: ticket.baseId,
-                    tableId: ticket.tableId,
+                    baseId: result.ticket.baseId,
+                    tableId: result.ticket.tableId,
                     userId: this.userId,
                   },
                   { upsert: true, new: true }
@@ -660,29 +386,44 @@ export class RevisionHistoryFetchService {
               }
             }
             console.log(
-              `[RevisionHistoryFetchService] ✅ Stored ${revisions.length} revisions in database`
+              `[RevisionHistoryFetchService] ✅ Stored ${result.revisions.length} revisions`
             );
-          } else {
+            successCount++;
+          } else if (result.success && "revisions" in result) {
             console.log(
-              `[RevisionHistoryFetchService] ⚪ No revision history found for ${recordId}`
+              `[RevisionHistoryFetchService] ⚪ No revision history found`
             );
+            successCount++;
+          } else if (!result.success && "error" in result) {
+            console.error(
+              `[RevisionHistoryFetchService] ❌ Error: ${
+                result.error?.message || "Unknown error"
+              }`
+            );
+            failedCount++;
           }
-        } catch (error: any) {
-          console.error(
-            `[RevisionHistoryFetchService] ❌ Error processing ${recordId}:`,
-            error.message
-          );
         }
 
-        // Small delay between requests
         console.log(
-          `[RevisionHistoryFetchService] ⏳ Waiting 1s before next ticket...`
+          `[RevisionHistoryFetchService] ✅ Batch ${batchNumber} complete: ${
+            batchResults.filter((r) => r.success).length
+          } success, ${batchResults.filter((r) => !r.success).length} failed`
         );
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+
+        // Small delay between batches
+        if (i + batchSize < tickets.length) {
+          console.log(
+            `[RevisionHistoryFetchService] ⏳ Waiting 2s before next batch...`
+          );
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
       }
 
       // Cleanup
-      await this.cleanup();
+      await this.terminateWorkerPool();
+
+      const endTime = Date.now();
+      const duration = ((endTime - startTime) / 1000).toFixed(2);
 
       console.log(`\n${"=".repeat(70)}`);
       console.log(
@@ -692,6 +433,18 @@ export class RevisionHistoryFetchService {
         `[RevisionHistoryFetchService] 📊 Total revisions stored: ${allRevisions.length}`
       );
       console.log(
+        `[RevisionHistoryFetchService] ✅ Success: ${successCount}/${tickets.length} tickets`
+      );
+      console.log(
+        `[RevisionHistoryFetchService] ❌ Failed: ${failedCount}/${tickets.length} tickets`
+      );
+      console.log(`[RevisionHistoryFetchService] ⏱️  Total time: ${duration}s`);
+      console.log(
+        `[RevisionHistoryFetchService] 🚀 Average: ${(
+          tickets.length / parseFloat(duration)
+        ).toFixed(2)} tickets/second`
+      );
+      console.log(
         `[RevisionHistoryFetchService] ⏰ Completed at: ${new Date().toISOString()}`
       );
       console.log(`${"=".repeat(70)}\n`);
@@ -699,7 +452,7 @@ export class RevisionHistoryFetchService {
       return allRevisions;
     } catch (error) {
       console.error("[RevisionHistoryFetchService] Unexpected error:", error);
-      await this.cleanup();
+      await this.terminateWorkerPool();
       throw error;
     }
   }

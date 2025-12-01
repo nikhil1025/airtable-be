@@ -186,11 +186,15 @@ export async function validate(req: Request, res: Response): Promise<Response> {
  * Simple manual authentication validation
  */
 export async function validateAuth(
-  req: Request<unknown, unknown, { email: string; password: string }>,
+  req: Request<
+    unknown,
+    unknown,
+    { email: string; password: string; userId?: string }
+  >,
   res: Response
 ): Promise<Response> {
   try {
-    const { email, password } = req.body;
+    const { email, password, userId } = req.body;
 
     if (!email || !password) {
       throw new ValidationError("Email and password are required");
@@ -198,10 +202,14 @@ export async function validateAuth(
 
     // Perform actual login with Puppeteer to extract cookies
     console.log(`[AUTH_VALIDATION] Starting login process for email: ${email}`);
+    console.log(
+      `[AUTH_VALIDATION] Using userId: ${userId || "Will generate new"}`
+    );
 
     const loginResult = await AirtableAuthService.performLoginAndExtractCookies(
       email,
-      password
+      password,
+      userId
     );
 
     if (!loginResult.success) {
@@ -211,7 +219,7 @@ export async function validateAuth(
     console.log(
       `[AUTH_VALIDATION] Login successful, extracted ${
         loginResult.cookies?.length || 0
-      } cookies`
+      } cookies for userId: ${loginResult.userId}`
     );
 
     return sendSuccessResponse(res, {

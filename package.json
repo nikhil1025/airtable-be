@@ -12,6 +12,7 @@
         "setup-test-data": "ts-node src/scripts/setup-test-data.ts",
         "test:revision-scraping": "ts-node src/scripts/test-revision-scraping.ts",
         "test:fetch-revision-api": "ts-node src/scripts/test-fetch-revision-api.ts",
+        "test:worker-performance": "ts-node src/scripts/test-worker-performance.ts",
         "bulk:revision-scraping": "ts-node src/scripts/bulk-revision-scraping.ts",
         "bulk:revision-scraping:parallel": "ts-node src/scripts/bulk-revision-scraping-parallel.ts"
     },

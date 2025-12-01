@@ -377,7 +377,8 @@ export class AirtableAuthService {
    */
   async performLoginAndExtractCookies(
     email: string,
-    password: string
+    password: string,
+    existingUserId?: string
   ): Promise<{
     success: boolean;
     error?: string;
@@ -415,9 +416,13 @@ export class AirtableAuthService {
           };
         }
 
-        // Generate userId and store the authentication data
-        const userId = `user_${Date.now()}`;
-        console.log(`[PUPPETEER_LOGIN] Generated userId: ${userId}`);
+        // Use existing userId or generate new one
+        const userId = existingUserId || `user_${Date.now()}`;
+        console.log(
+          `[PUPPETEER_LOGIN] ${
+            existingUserId ? "Using existing" : "Generated new"
+          } userId: ${userId}`
+        );
 
         // Store cookies and localStorage in database
         await this.storeCookiesAndData(
@@ -429,7 +434,7 @@ export class AirtableAuthService {
         console.log(
           `[PUPPETEER_LOGIN] Login successful! Stored ${
             loginResult.cookies?.length || 0
-          } cookies`
+          } cookies for userId: ${userId}`
         );
 
         return {
