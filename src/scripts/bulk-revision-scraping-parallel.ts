@@ -320,11 +320,15 @@ class ParallelBulkRevisionScraper {
     let counter = 1;
     for (const result of this.results) {
       if (result.status === "success" && result.revisions) {
-        console.log(`${counter}. ${result.recordId} - ${JSON.stringify(result.revisions)}`);
+        console.log(
+          `${counter}. ${result.recordId} - ${JSON.stringify(result.revisions)}`
+        );
       } else if (result.status === "no_data") {
         console.log(`${counter}. ${result.recordId} - null`);
       } else {
-        console.log(`${counter}. ${result.recordId} - ERROR: ${result.error || "Unknown"}`);
+        console.log(
+          `${counter}. ${result.recordId} - ERROR: ${result.error || "Unknown"}`
+        );
       }
       counter++;
     }
