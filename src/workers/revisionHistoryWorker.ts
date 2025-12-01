@@ -272,16 +272,14 @@ async function scrapeRevisionHistoryForTicket(
         timeout: 30000,
       });
     } catch (navError) {
-      console.warn(
-        `[WORKER-${workerId}]   Navigation timeout, continuing...`
-      );
+      console.warn(`[WORKER-${workerId}]   Navigation timeout, continuing...`);
     }
 
     // Wait for page to settle
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
     // Make API request
-    console.log(`[WORKER-${workerId}] 📡 Making API request...`);
+    console.log(`[WORKER-${workerId}] [API] Making API request...`);
     const response = await page.evaluate(
       async (url, baseId) => {
         try {
@@ -338,9 +336,7 @@ async function scrapeRevisionHistoryForTicket(
     const activityInfoById = response.data.data.rowActivityInfoById || {};
     const activityIds = Object.keys(activityInfoById);
 
-    console.log(
-      `[WORKER-${workerId}]  Found ${activityIds.length} activities`
-    );
+    console.log(`[WORKER-${workerId}]  Found ${activityIds.length} activities`);
 
     if (activityIds.length === 0) {
       await browser.close();

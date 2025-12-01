@@ -31,11 +31,13 @@ export class RevisionHistoryService {
   ): Promise<RevisionHistoryResponse> {
     try {
       console.log(`\n${"=".repeat(70)}`);
-      console.log(`[RevisionHistoryService]  Starting fetchRevisionHistory`);
-      console.log(`[RevisionHistoryService] 👤 User: ${userId}`);
-      console.log(`[RevisionHistoryService]  Record: ${recordId}`);
       console.log(
-        `[RevisionHistoryService]  Base: ${baseId}, Table: ${tableId}`
+        `[RevisionHistoryService] [START] Starting fetchRevisionHistory`
+      );
+      console.log(`[RevisionHistoryService] [INFO] User: ${userId}`);
+      console.log(`[RevisionHistoryService] [INFO] Record: ${recordId}`);
+      console.log(
+        `[RevisionHistoryService] [INFO] Base: ${baseId}, Table: ${tableId}`
       );
       console.log(`${"=".repeat(70)}\n`);
 
@@ -120,14 +122,10 @@ export class RevisionHistoryService {
           "SCRAPING_FAILED"
         );
       }
-      console.log(
-        `[RevisionHistoryService]  Scraping completed successfully`
-      );
+      console.log(`[RevisionHistoryService]  Scraping completed successfully`);
 
       // Parse the HTML to extract revision changes
-      console.log(
-        `[RevisionHistoryService] 📄 Step 5: Parsing HTML/DOM data...`
-      );
+      console.log(`[RevisionHistoryService] [STEP 5] Parsing HTML/DOM data...`);
       let parsedRevisions: RevisionChange[] = [];
 
       if (result.html) {
@@ -349,10 +347,14 @@ export class RevisionHistoryService {
   ): Promise<SyncRevisionHistoryResponse> {
     try {
       console.log(`\n${"=".repeat(70)}`);
-      console.log(`[RevisionHistoryService]  Starting syncRevisionHistory`);
-      console.log(`[RevisionHistoryService] 👤 User: ${userId}`);
-      if (baseId) console.log(`[RevisionHistoryService]  Base: ${baseId}`);
-      if (tableId) console.log(`[RevisionHistoryService]  Table: ${tableId}`);
+      console.log(
+        `[RevisionHistoryService] [START] Starting syncRevisionHistory`
+      );
+      console.log(`[RevisionHistoryService] [INFO] User: ${userId}`);
+      if (baseId)
+        console.log(`[RevisionHistoryService] [INFO] Base: ${baseId}`);
+      if (tableId)
+        console.log(`[RevisionHistoryService] [INFO] Table: ${tableId}`);
       console.log(`${"=".repeat(70)}\n`);
 
       logger.info(
@@ -392,9 +394,7 @@ export class RevisionHistoryService {
           errors: [],
         };
       }
-      console.log(
-        `[RevisionHistoryService]  Found ${tickets.length} tickets`
-      );
+      console.log(`[RevisionHistoryService]  Found ${tickets.length} tickets`);
 
       logger.info("Found tickets with record IDs in database", {
         count: tickets.length,
@@ -441,10 +441,10 @@ export class RevisionHistoryService {
       const errors: Array<{ recordId: string; error: string }> = [];
 
       console.log(
-        `[RevisionHistoryService]  Step 3: Starting batch processing`
+        `[RevisionHistoryService] [STEP 3] Starting batch processing`
       );
       console.log(
-        `[RevisionHistoryService] 📦 Total batches: ${batches.length}, Batch size: ${batchSize}`
+        `[RevisionHistoryService] [INFO] Total batches: ${batches.length}, Batch size: ${batchSize}`
       );
       logger.info("Starting background revision history extraction", {
         totalBatches: batches.length,
@@ -454,9 +454,11 @@ export class RevisionHistoryService {
       for (let i = 0; i < batches.length; i++) {
         const batch = batches[i];
         console.log(
-          `\n[RevisionHistoryService] 📌 Processing batch ${i + 1}/${
+          `\n[RevisionHistoryService] [BATCH ${i + 1}/${
             batches.length
-          } (${batch.length} tickets)...`
+          }] Processing batch ${i + 1}/${batches.length} (${
+            batch.length
+          } tickets)...`
         );
         logger.info("Processing revision history batch in background", {
           batchNumber: i + 1,
@@ -549,9 +551,7 @@ export class RevisionHistoryService {
     // Use lower concurrency for revision history scraping to avoid overwhelming the server
     const concurrency = 3; // Conservative approach for web scraping
 
-    console.log(
-      `[RevisionHistoryService]   Concurrency level: ${concurrency}`
-    );
+    console.log(`[RevisionHistoryService]   Concurrency level: ${concurrency}`);
     logger.info("Starting background revision history batch processing", {
       totalTickets: tickets.length,
       concurrency,

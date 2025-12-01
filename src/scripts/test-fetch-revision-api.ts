@@ -13,7 +13,7 @@ async function main() {
     console.log("\n" + "=".repeat(70));
     console.log(" STANDALONE REVISION HISTORY FETCH TEST");
     console.log("=".repeat(70));
-    console.log(`👤 User ID: ${userId}`);
+    console.log(`[INFO] User ID: ${userId}`);
     console.log(` Started at: ${new Date().toISOString()}`);
     console.log("=".repeat(70) + "\n");
 
@@ -76,7 +76,7 @@ async function main() {
 
     process.exit(0);
   } catch (error) {
-    console.error("\n💥 ERROR:", error);
+    console.error("\n[ERROR] ERROR:", error);
     process.exit(1);
   }
 }

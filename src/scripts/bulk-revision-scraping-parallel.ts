@@ -63,7 +63,7 @@ class ParallelBulkRevisionScraper {
   async fetchCookiesFromDB(): Promise<boolean> {
     try {
       console.log("\n" + "=".repeat(70));
-      console.log("📦 STEP 1: FETCHING COOKIES FROM MONGODB");
+      console.log("[STEP 1] FETCHING COOKIES FROM MONGODB");
       console.log("=".repeat(70));
 
       const connection = await AirtableConnection.findOne({
@@ -222,13 +222,13 @@ class ParallelBulkRevisionScraper {
 
       // Adjust number of workers if we have fewer tickets
       const actualWorkers = Math.min(this.numWorkers, tickets.length);
-      console.log(`🧵 CPU Cores Available: ${os.cpus().length}`);
-      console.log(`🧵 Workers to Launch: ${actualWorkers}`);
+      console.log(`[INFO] CPU Cores Available: ${os.cpus().length}`);
+      console.log(`[INFO] Workers to Launch: ${actualWorkers}`);
 
       // Divide tickets into batches
       const batches = this.divideToBatches(tickets);
       console.log(
-        `📦 Divided ${tickets.length} tickets into ${batches.length} batches`
+        `[INFO] Divided ${tickets.length} tickets into ${batches.length} batches`
       );
 
       batches.forEach((batch, index) => {
@@ -312,7 +312,7 @@ class ParallelBulkRevisionScraper {
     console.log(`\n Summary:`);
     console.log(`   Total Processed: ${this.results.length}`);
     console.log(`    Success: ${successCount}`);
-    console.log(`   ⚪ No Data: ${noDataCount}`);
+    console.log(`   [INFO] No Data: ${noDataCount}`);
     console.log(`    Errors: ${errorCount}`);
 
     console.log(`\n Detailed Results:\n`);
@@ -344,10 +344,10 @@ class ParallelBulkRevisionScraper {
       console.log("\n" + "=".repeat(70));
       console.log(" PARALLEL BULK REVISION HISTORY SCRAPER");
       console.log("=".repeat(70));
-      console.log(`👤 User ID: ${this.userId}`);
-      console.log(`🧵 Available CPU Cores: ${os.cpus().length}`);
+      console.log(`[INFO] User ID: ${this.userId}`);
+      console.log(`[INFO] Available CPU Cores: ${os.cpus().length}`);
       console.log(
-        `🧵 Workers Configured: ${this.numWorkers} (dynamic allocation)`
+        `[INFO] Workers Configured: ${this.numWorkers} (dynamic allocation)`
       );
 
       // Connect to database

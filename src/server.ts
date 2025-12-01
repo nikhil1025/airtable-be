@@ -55,12 +55,12 @@ app.use(
     console.log("\n" + "=".repeat(70));
     console.log(` INCOMING API REQUEST`);
     console.log("=".repeat(70));
-    console.log(`📍 Method: ${req.method}`);
-    console.log(`📍 Path: ${req.path}`);
+    console.log(`[INFO] Method: ${req.method}`);
+    console.log(`[INFO] Path: ${req.path}`);
     console.log(
-      `📍 Full URL: ${req.protocol}://${req.get("host")}${req.originalUrl}`
+      `[INFO] Full URL: ${req.protocol}://${req.get("host")}${req.originalUrl}`
     );
-    console.log(`📍 Params:`, req.params);
+    console.log(`[INFO] Params:`, req.params);
     console.log(` Time: ${new Date().toISOString()}`);
     console.log("=".repeat(70) + "\n");
     next();

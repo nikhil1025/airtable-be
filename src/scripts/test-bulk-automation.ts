@@ -82,7 +82,7 @@ async function testBulkRevisionAutomation() {
     console.log("  }");
     console.log("]");
 
-    console.log("\n🎯 READY TO PROCESS:");
+    console.log("\n[INFO] READY TO PROCESS:");
     console.log(`• ${ticketCount} tickets will be processed`);
     console.log(
       "• Each will use format: https://airtable.com/v0.3/row/{airtableRecordId}/readRowActivitiesAndComments?{options}"
@@ -93,7 +93,7 @@ async function testBulkRevisionAutomation() {
     console.log("• Results will be stored in RevisionHistory collection");
     console.log("• Full terminal logging will show progress");
 
-    console.log("\n✨ AUTOMATION IS READY TO RUN!");
+    console.log("\n[SUCCESS] AUTOMATION IS READY TO RUN!");
   } catch (error) {
     console.error(" Error:", error);
   } finally {

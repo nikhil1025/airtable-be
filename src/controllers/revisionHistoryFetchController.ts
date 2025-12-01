@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { RevisionHistory } from "../models";
 import { RevisionHistoryFetchService } from "../services/RevisionHistoryFetchService";
+import { removeDuplicateRevisions } from "../utils/removeDuplicateRevisions";
 
 /**
  * REVISION HISTORY FETCH CONTROLLER
@@ -43,13 +44,24 @@ export const fetchRevisionHistoriesForUser = async (
     const revisions = await service.fetchAndStoreRevisionHistories();
 
     console.log(`\n${"=".repeat(70)}`);
-    console.log(` FETCH COMPLETED SUCCESSFULLY`);
+    console.log(` FETCH COMPLETED - NOW CLEANING DUPLICATES`);
+    console.log(`${"=".repeat(70)}\n`);
+
+    // Remove duplicates for this user
+    const cleanupStats = await removeDuplicateRevisions(userId);
+
+    console.log(`\n${"=".repeat(70)}`);
+    console.log(` CLEANUP COMPLETED SUCCESSFULLY`);
     console.log(`${"=".repeat(70)}`);
-    console.log(` Total Revision Items Stored: ${revisions.length}`);
+    console.log(` Total Revisions: ${cleanupStats.totalRevisions}`);
+    console.log(` Unique Groups: ${cleanupStats.uniqueGroups}`);
+    console.log(` Duplicate Groups Found: ${cleanupStats.duplicateGroups}`);
+    console.log(` Duplicates Removed: ${cleanupStats.duplicatesRemoved}`);
+    console.log(` Affected Records: ${cleanupStats.affectedRecords}`);
     console.log(` Completed at: ${new Date().toISOString()}`);
     console.log(`${"=".repeat(70)}\n`);
 
-    // Fetch all revision histories for this user from DB
+    // Fetch all revision histories for this user from DB (after cleanup)
     const allUserRevisions = await RevisionHistory.find({ userId })
       .sort({ createdDate: -1 })
       .lean();
@@ -96,16 +108,21 @@ export const fetchRevisionHistoriesForUser = async (
     // Send response
     res.status(200).json({
       success: true,
-      message: `Successfully fetched and stored ${revisions.length} revision items`,
+      message: `Successfully fetched and stored ${revisions.length} revision items (${cleanupStats.duplicatesRemoved} duplicates removed)`,
       data: {
         totalRevisions: allUserRevisions.length,
         totalTicketsWithRevisions: Object.keys(groupedByIssue).length,
         revisions: allUserRevisions,
         groupedByIssue: groupedByIssue,
+        cleanupStats: {
+          duplicatesRemoved: cleanupStats.duplicatesRemoved,
+          duplicateGroupsFound: cleanupStats.duplicateGroups,
+          affectedRecords: cleanupStats.affectedRecords,
+        },
       },
     });
   } catch (error: any) {
-    console.error("\n💥 ERROR FETCHING REVISION HISTORIES:", error);
+    console.error("\n[ERROR] FETCHING REVISION HISTORIES:", error);
 
     res.status(500).json({
       success: false,
@@ -448,7 +465,7 @@ export const scrapeSingleRecord = async (
     console.log(`\n${"=".repeat(70)}`);
     console.log(` SCRAPING SINGLE RECORD REVISION HISTORY`);
     console.log(`${"".repeat(70)}`);
-    console.log(`👤 User ID: ${userId}`);
+    console.log(`[INFO] User ID: ${userId}`);
     console.log(` Record ID: ${recordId}`);
     console.log(` Base ID: ${baseId}`);
     console.log(` Table ID: ${tableId}`);
@@ -489,8 +506,7 @@ export const scrapeSingleRecord = async (
       },
     });
   } catch (error: any) {
-    console.error("\n💥 ERROR SCRAPING SINGLE RECORD:", error);
-
+    console.error("\n[ERROR] SCRAPING SINGLE RECORD:", error);
     res.status(500).json({
       success: false,
       message: "Failed to scrape revision history for record",

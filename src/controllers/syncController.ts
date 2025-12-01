@@ -1,16 +1,16 @@
 import { Request, Response } from "express";
 import AirtableDataService from "../services/AirtableDataService";
 import {
-    SyncAllRequest,
-    SyncBasesRequest,
-    SyncTablesRequest,
-    SyncTicketsRequest,
+  SyncAllRequest,
+  SyncBasesRequest,
+  SyncTablesRequest,
+  SyncTicketsRequest,
 } from "../types";
 import {
-    logger,
-    sendErrorResponse,
-    sendSuccessResponse,
-    ValidationError,
+  logger,
+  sendErrorResponse,
+  sendSuccessResponse,
+  ValidationError,
 } from "../utils/errors";
 
 /**
@@ -183,7 +183,7 @@ export async function syncAll(
   try {
     const { userId } = req.body;
 
-    logger.info("📡 [SyncController] Received syncAll request", {
+    logger.info("[SyncController] Received syncAll request", {
       userId,
       body: req.body,
       url: req.url,

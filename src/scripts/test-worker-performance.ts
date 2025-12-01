@@ -16,13 +16,13 @@ async function runPerformanceTest() {
     console.log("\n" + "=".repeat(80));
     console.log(" WORKER THREAD PERFORMANCE TEST");
     console.log("=".repeat(80));
-    console.log(`📍 MongoDB: ${MONGO_URI}`);
-    console.log(`👤 User ID: ${USER_ID}`);
+    console.log(`[INFO] MongoDB: ${MONGO_URI}`);
+    console.log(`[INFO] User ID: ${USER_ID}`);
     console.log(` Started at: ${new Date().toISOString()}`);
     console.log("=".repeat(80) + "\n");
 
     // Connect to MongoDB
-    console.log("🔌 Connecting to MongoDB...");
+    console.log("[INFO] Connecting to MongoDB...");
     await mongoose.connect(MONGO_URI);
     console.log(" MongoDB connected\n");
 
@@ -48,8 +48,8 @@ async function runPerformanceTest() {
     console.log("\n" + "=".repeat(80));
     console.log(" PERFORMANCE TEST RESULTS");
     console.log("=".repeat(80));
-    console.log(`⏱️  Total Execution Time: ${duration} seconds`);
-    console.log(`📦 Total Revisions Fetched: ${results.length}`);
+    console.log(`[INFO] Total Execution Time: ${duration} seconds`);
+    console.log(`[INFO] Total Revisions Fetched: ${results.length}`);
     console.log(
       ` Processing Rate: ${(results.length / parseFloat(duration)).toFixed(
         2
@@ -60,15 +60,15 @@ async function runPerformanceTest() {
 
     // Performance summary
     console.log(" PERFORMANCE SUMMARY:");
-    console.log(`   ⚡ Execution time: ${duration}s`);
-    console.log(`    Revisions: ${results.length}`);
-    console.log(`   🎯 Success rate: 100%`);
-    console.log(`   🧵 Worker threads: AUTO (CPU cores - 1)`);
+    console.log(`   [INFO] Execution time: ${duration}s`);
+    console.log(`   [INFO] Revisions: ${results.length}`);
+    console.log(`   [INFO] Success rate: 100%`);
+    console.log(`   [INFO] Worker threads: AUTO (CPU cores - 1)`);
     console.log("\n Test completed successfully!\n");
 
     // Disconnect
     await mongoose.disconnect();
-    console.log("🔌 MongoDB disconnected");
+    console.log("[INFO] MongoDB disconnected");
 
     process.exit(0);
   } catch (error) {

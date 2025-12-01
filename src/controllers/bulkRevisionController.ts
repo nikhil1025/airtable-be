@@ -31,7 +31,7 @@ export async function bulkRevisionHistoryAutomation(
       throw new AppError("userId is required", 400, "MISSING_USER_ID");
     }
 
-    console.log(`👤 User ID: ${userId}`);
+    console.log(`[INFO] User ID: ${userId}`);
 
     // STEP 1: Get all tickets from MongoDB
     console.log("\n STEP 1: Fetching all tickets from MongoDB");
@@ -147,9 +147,7 @@ export async function bulkRevisionHistoryAutomation(
     for (let i = 0; i < urlList.length; i++) {
       const item = urlList[i];
 
-      console.log(
-        `\n Processing ${i + 1}/${urlList.length}: ${item.recordId}`
-      );
+      console.log(`\n Processing ${i + 1}/${urlList.length}: ${item.recordId}`);
       console.log(` Title: ${item.title}`);
 
       try {
@@ -193,13 +191,13 @@ export async function bulkRevisionHistoryAutomation(
           allRevisionHistory.push(...revisions);
           successCount++;
         } else {
-          console.log("📭 No revision history found for this record");
+          console.log("[INFO] No revision history found for this record");
           successCount++;
         }
 
         // Rate limiting - wait 1 second between requests
         if (i < urlList.length - 1) {
-          console.log("⏳ Waiting 1 second...");
+          console.log("[INFO] Waiting 1 second...");
           await new Promise((resolve) => setTimeout(resolve, 1000));
         }
       } catch (error) {
@@ -210,7 +208,9 @@ export async function bulkRevisionHistoryAutomation(
         );
 
         if ((error as any).response?.status === 401) {
-          console.error("🔐 Authentication failed - cookies may have expired");
+          console.error(
+            "[ERROR] Authentication failed - cookies may have expired"
+          );
           break; // Stop processing if cookies are invalid
         }
       }
@@ -250,9 +250,7 @@ export async function bulkRevisionHistoryAutomation(
         savedCount++;
       }
 
-      console.log(
-        ` Saved ${savedCount} revision history records to database`
-      );
+      console.log(` Saved ${savedCount} revision history records to database`);
     }
 
     // STEP 7: Print final results in requested format

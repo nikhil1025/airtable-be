@@ -568,13 +568,29 @@ export class AirtableDataService {
       const maxConcurrency = Math.max(cpuCount - 1, 4); // Leave 1 CPU for system
 
       logger.info(
-        "Starting full sync - will fetch ALL data from Airtable with maximum parallelization",
+        "[SYNC] Starting full sync - will clear existing data and fetch ALL data from Airtable",
         {
           userId,
           cpuCount,
           maxConcurrency,
         }
       );
+
+      // Step 0: Clear all existing data for this user (clear-and-replace strategy)
+      logger.info("[SYNC] Clearing existing data from collections", { userId });
+      
+      const deleteResults = await Promise.all([
+        Ticket.deleteMany({ userId }),
+        Table.deleteMany({ userId }),
+        Project.deleteMany({ userId })
+      ]);
+
+      logger.info("[SYNC] Successfully cleared existing data", {
+        userId,
+        ticketsDeleted: deleteResults[0].deletedCount,
+        tablesDeleted: deleteResults[1].deletedCount,
+        projectsDeleted: deleteResults[2].deletedCount
+      });
 
       let totalBases = 0;
       let totalTables = 0;
@@ -673,7 +689,7 @@ export class AirtableDataService {
       totalTables = baseResults.reduce((sum, r) => sum + r.tables, 0);
       totalTickets = baseResults.reduce((sum, r) => sum + r.tickets, 0);
 
-      logger.info(" Full sync completed successfully", {
+      logger.info("[SYNC] Full sync completed successfully - all data replaced with fresh Airtable data", {
         userId,
         totalBases,
         totalTables,
@@ -694,7 +710,7 @@ export class AirtableDataService {
         },
       };
     } catch (error) {
-      logger.error("Full sync failed", error, { userId });
+      logger.error("[SYNC] Full sync failed", error, { userId });
       throw handleAirtableError(error);
     }
   }

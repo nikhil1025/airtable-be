@@ -604,9 +604,7 @@ export class CookieScraperService {
           .join("; ");
       } catch (jsonError) {
         console.log(" JSON parse failed:", (jsonError as Error).message);
-        console.log(
-          " Parsing as HTTP cookie string format (new auth system)"
-        );
+        console.log(" Parsing as HTTP cookie string format (new auth system)");
 
         // Parse HTTP cookie string format: "name1=value1; name2=value2"
         parsedCookies = parseCookies(cookiesString);
@@ -696,7 +694,7 @@ export class CookieScraperService {
         return false;
       } catch (networkError: any) {
         console.log(
-          "🚨 Network error during workspace validation:",
+          "[ERROR] Network error during workspace validation:",
           networkError.message
         );
 

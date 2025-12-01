@@ -121,10 +121,10 @@ async function handleLogin(data: any): Promise<any> {
       currentUrl.includes("auth/verify")
     ) {
       console.log(
-        "\n  MFA REQUIRED - Please complete MFA in the browser window"
+        "\n[MFA] MFA REQUIRED - Please complete MFA in the browser window"
       );
-      console.log("👉 Enter your MFA code and click Submit button");
-      console.log("⏳ Waiting for you to complete authentication...\n");
+      console.log("[INFO] Enter your MFA code and click Submit button");
+      console.log("[WAIT] Waiting for you to complete authentication...\n");
 
       // Wait for navigation away from MFA page (up to 300 seconds)
       try {
@@ -362,9 +362,7 @@ async function handleLogin(data: any): Promise<any> {
         });
 
         if (accessToken) {
-          console.log(
-            "[PUPPETEER_WORKER]  Extracted token from page context"
-          );
+          console.log("[PUPPETEER_WORKER]  Extracted token from page context");
         }
       }
     } catch (error) {

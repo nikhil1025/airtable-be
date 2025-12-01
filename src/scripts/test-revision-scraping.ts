@@ -38,7 +38,7 @@ class RevisionHistoryScraper {
   async fetchCookiesFromDB(): Promise<boolean> {
     try {
       console.log("\n" + "=".repeat(70));
-      console.log("📦 STEP 1: FETCHING COOKIES FROM MONGODB");
+      console.log("[STEP 1] FETCHING COOKIES FROM MONGODB");
       console.log("=".repeat(70));
 
       await connectDatabase();
@@ -211,7 +211,7 @@ class RevisionHistoryScraper {
           url.includes("/v0.3/") ||
           url.includes("readRowActivitiesAndComments")
         ) {
-          console.log(`   📡 API Call: ${url.substring(0, 100)}...`);
+          console.log(`   [API] API Call: ${url.substring(0, 100)}...`);
           console.log(`      Status: ${response.status()}`);
         }
       });
@@ -286,7 +286,7 @@ class RevisionHistoryScraper {
         );
 
       console.log(
-        `📦 Prepared ${cookieObjects.length} valid cookies for browser`
+        `[INFO] Prepared ${cookieObjects.length} valid cookies for browser`
       );
 
       // Set cookies one by one to catch errors
@@ -344,7 +344,7 @@ class RevisionHistoryScraper {
 
       // Use specific record ID that has revision history
       const targetRecordId = "recuMKeu0aLm7i0hP";
-      console.log(`🎯 Looking for specific record: ${targetRecordId}`);
+      console.log(`[INFO] Looking for specific record: ${targetRecordId}`);
 
       const ticket = await Ticket.findOne({
         userId: this.userId,
@@ -551,7 +551,7 @@ class RevisionHistoryScraper {
         ticketData.baseId
       );
 
-      console.log(`\n📡 API Response:`);
+      console.log(`\n[API] API Response:`);
       console.log(`   Status: ${response.status} ${response.statusText}`);
 
       if (!response.ok) {
@@ -784,7 +784,7 @@ class RevisionHistoryScraper {
    */
   async cleanup(): Promise<void> {
     console.log("\n" + "=".repeat(70));
-    console.log("🧹 CLEANUP");
+    console.log("[CLEANUP] CLEANUP");
     console.log("=".repeat(70));
 
     if (this.browser) {
@@ -845,7 +845,7 @@ class RevisionHistoryScraper {
 
       if (revisions.length > 0) {
         console.log("\n" + "=".repeat(70));
-        console.log("📄 FULL REVISION HISTORY DATA");
+        console.log("[RESULTS] FULL REVISION HISTORY DATA");
         console.log("=".repeat(70));
 
         revisions.forEach((revision, index) => {
@@ -873,14 +873,14 @@ class RevisionHistoryScraper {
 
       // Keep browser open for inspection
       console.log("\n" + "=".repeat(70));
-      console.log("⏸️  Browser kept open for manual inspection.");
+      console.log("[INFO] Browser kept open for manual inspection.");
       console.log("   Press Ctrl+C to close and exit.");
       console.log("=".repeat(70));
 
       // Wait indefinitely (user can manually close)
       await new Promise(() => {});
     } catch (error) {
-      console.error("\n💥 UNEXPECTED ERROR:", error);
+      console.error("\n[ERROR] UNEXPECTED ERROR:", error);
       await this.cleanup();
       process.exit(1);
     }
@@ -894,7 +894,7 @@ async function main() {
 
   // Handle Ctrl+C gracefully
   process.on("SIGINT", async () => {
-    console.log("\n\n⏹️  Interrupted by user");
+    console.log("\n\n[INFO] Interrupted by user");
     await scraper.cleanup();
     process.exit(0);
   });

@@ -10,8 +10,8 @@ async function runBulkAutomationDemo() {
 
     const userId = "user_1764311628981";
 
-    console.log(`👤 User ID: ${userId}`);
-    console.log("🎯 Target: All 24 tickets in MongoDB");
+    console.log(`[INFO] User ID: ${userId}`);
+    console.log("[INFO] Target: All 24 tickets in MongoDB");
     console.log(" Expected: Extract revision history in your exact format");
 
     console.log("\n Making API call to bulk automation endpoint...");
@@ -37,7 +37,7 @@ async function runBulkAutomationDemo() {
 
       console.log("\n BULK AUTOMATION COMPLETED SUCCESSFULLY!");
       console.log("=".repeat(60));
-      console.log(`⏱️ Total time: ${duration.toFixed(2)} seconds`);
+      console.log(`[INFO] Total time: ${duration.toFixed(2)} seconds`);
       console.log(` Status: ${response.data.success}`);
       console.log(` Message: ${response.data.message}`);
 
@@ -93,18 +93,16 @@ async function runBulkAutomationDemo() {
         );
         console.log(`• Unique records with history: ${uniqueRecords.size}`);
       } else {
-        console.log("\n📭 No revision history found");
+        console.log("\n[INFO] No revision history found");
         console.log("Possible reasons:");
         console.log("• Records have no field changes");
         console.log("• Only Status/Assignee changes are tracked");
         console.log("• Authentication issues");
       }
 
-      console.log("\n✨ AUTOMATION SUCCESS!");
+      console.log("\n[SUCCESS] AUTOMATION SUCCESS!");
       console.log("All revision history has been:");
-      console.log(
-        " Extracted from Airtable using the correct endpoint format"
-      );
+      console.log(" Extracted from Airtable using the correct endpoint format");
       console.log(" Formatted in your exact JSON specification");
       console.log(" Stored in RevisionHistory MongoDB collection");
       console.log(" Logged to terminal with full details");
@@ -119,7 +117,7 @@ async function runBulkAutomationDemo() {
         );
 
         if (error.response.status === 401) {
-          console.log("\n🔐 AUTHENTICATION REQUIRED:");
+          console.log("\n[ERROR] AUTHENTICATION REQUIRED:");
           console.log("1. Cookies need to be refreshed");
           console.log("2. Use MFA authentication in frontend");
           console.log("3. Store all cookies, localStorage, sessionData");

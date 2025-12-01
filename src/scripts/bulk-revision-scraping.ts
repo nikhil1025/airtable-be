@@ -61,7 +61,7 @@ class BulkRevisionHistoryScraper {
   async fetchCookiesFromDB(): Promise<boolean> {
     try {
       console.log("\n" + "=".repeat(70));
-      console.log("📦 STEP 1: FETCHING COOKIES FROM MONGODB");
+      console.log("[STEP 1] FETCHING COOKIES FROM MONGODB");
       console.log("=".repeat(70));
 
       const connection = await AirtableConnection.findOne({
@@ -422,9 +422,7 @@ class BulkRevisionHistoryScraper {
           timeout: 30000,
         });
       } catch (navError) {
-        console.warn(
-          `     Navigation timeout for ${recordId}, continuing...`
-        );
+        console.warn(`     Navigation timeout for ${recordId}, continuing...`);
       }
 
       // Wait a bit for page to settle
@@ -585,7 +583,7 @@ class BulkRevisionHistoryScraper {
     console.log(` Errors: ${errorCount}`);
 
     console.log("\n" + "=".repeat(70));
-    console.log("📄 DETAILED RESULTS");
+    console.log("[RESULTS] DETAILED RESULTS");
     console.log("=".repeat(70));
 
     for (const result of this.results) {
@@ -612,7 +610,7 @@ class BulkRevisionHistoryScraper {
    */
   async cleanup(): Promise<void> {
     console.log("\n" + "=".repeat(70));
-    console.log("🧹 CLEANUP");
+    console.log("[CLEANUP] CLEANUP");
     console.log("=".repeat(70));
 
     if (this.browser) {
@@ -679,7 +677,7 @@ class BulkRevisionHistoryScraper {
       // Cleanup
       await this.cleanup();
     } catch (error) {
-      console.error("\n💥 UNEXPECTED ERROR:", error);
+      console.error("\n[ERROR] UNEXPECTED ERROR:", error);
       await this.cleanup();
       process.exit(1);
     }
@@ -698,7 +696,7 @@ async function main() {
 
   // Handle Ctrl+C gracefully
   process.on("SIGINT", async () => {
-    console.log("\n\n⏹️  Interrupted by user");
+    console.log("\n\n[INFO] Interrupted by user");
     await scraper.cleanup();
     process.exit(0);
   });

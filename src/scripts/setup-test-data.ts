@@ -1,7 +1,6 @@
 import { connectDatabase } from "../config/database";
 import { AirtableConnection, Ticket } from "../models";
 
-
 async function setupTestData() {
   try {
     console.log("\n" + "=".repeat(70));
@@ -14,7 +13,7 @@ async function setupTestData() {
     const TEST_USER_ID = "user_1764525443009";
 
     // Step 1: Create AirtableConnection (if not exists)
-    console.log("\n📦 Step 1: Creating AirtableConnection...");
+    console.log("\n[STEP 1] Step 1: Creating AirtableConnection...");
 
     let connection = await AirtableConnection.findOne({ userId: TEST_USER_ID });
 
@@ -159,7 +158,7 @@ async function setupTestData() {
     console.log("\n");
     process.exit(0);
   } catch (error) {
-    console.error("\n💥 Error setting up test data:", error);
+    console.error("\n[ERROR] Error setting up test data:", error);
     process.exit(1);
   }
 }

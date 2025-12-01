@@ -103,7 +103,7 @@ export class RevisionHistoryFetchService {
    */
   private async terminateWorkerPool(): Promise<void> {
     console.log(
-      `[RevisionHistoryFetchService] 🛑 Terminating ${this.workerPool.length} workers...`
+      `[RevisionHistoryFetchService] [STOP] Terminating ${this.workerPool.length} workers...`
     );
 
     await Promise.all(
@@ -113,7 +113,7 @@ export class RevisionHistoryFetchService {
     );
 
     this.workerPool = [];
-    console.log(`[RevisionHistoryFetchService]  Worker pool terminated`);
+    console.log(`[RevisionHistoryFetchService] [INFO] Worker pool terminated`);
   }
 
   /**
@@ -126,7 +126,7 @@ export class RevisionHistoryFetchService {
   ): Promise<RevisionHistoryItem[]> {
     try {
       console.log(
-        `[RevisionHistoryFetchService] 🎯 Scraping single record: ${recordId}`
+        `[RevisionHistoryFetchService] [INFO] Scraping single record: ${recordId}`
       );
 
       // Fetch cookies
@@ -149,7 +149,7 @@ export class RevisionHistoryFetchService {
       };
 
       console.log(
-        `[RevisionHistoryFetchService] 📤 Sending scrape task to worker...`
+        `[RevisionHistoryFetchService] [TASK] Sending scrape task to worker...`
       );
 
       // Process with worker
@@ -190,7 +190,7 @@ export class RevisionHistoryFetchService {
         return revisions;
       } else {
         console.log(
-          `[RevisionHistoryFetchService] ℹ️  No revisions found for record ${recordId}`
+          `[RevisionHistoryFetchService] [INFO] No revisions found for record ${recordId}`
         );
         return [];
       }
@@ -251,7 +251,7 @@ export class RevisionHistoryFetchService {
   private async fetchCookiesFromDB(): Promise<boolean> {
     try {
       console.log(
-        `\n[RevisionHistoryFetchService] 📦 Step 1: Fetching cookies for user: ${this.userId}`
+        `\n[RevisionHistoryFetchService] [STEP 1] Fetching cookies for user: ${this.userId}`
       );
 
       const connection = await AirtableConnection.findOne({
@@ -276,7 +276,7 @@ export class RevisionHistoryFetchService {
       let cookieString = connection.cookies;
       if (isEncrypted(cookieString)) {
         console.log(
-          "[RevisionHistoryFetchService] 🔐 Cookies are encrypted, decrypting..."
+          "[RevisionHistoryFetchService] [INFO] Cookies are encrypted, decrypting..."
         );
         try {
           cookieString = decrypt(cookieString);
@@ -291,9 +291,7 @@ export class RevisionHistoryFetchService {
           return false;
         }
       } else {
-        console.log(
-          "[RevisionHistoryFetchService]  Cookies are not encrypted"
-        );
+        console.log("[RevisionHistoryFetchService]  Cookies are not encrypted");
       }
 
       this.cookies = cookieString;
@@ -362,14 +360,16 @@ export class RevisionHistoryFetchService {
     try {
       console.log(`\n${"=".repeat(70)}`);
       console.log(
-        `[RevisionHistoryFetchService]  STARTING REVISION HISTORY FETCH (WORKER THREAD MODE)`
-      );
-      console.log(`[RevisionHistoryFetchService] 👤 User ID: ${this.userId}`);
-      console.log(
-        `[RevisionHistoryFetchService] 🧵 Worker threads: ${this.poolSize}`
+        `[RevisionHistoryFetchService] [START] STARTING REVISION HISTORY FETCH (WORKER THREAD MODE)`
       );
       console.log(
-        `[RevisionHistoryFetchService]  Started at: ${new Date().toISOString()}`
+        `[RevisionHistoryFetchService] [INFO] User ID: ${this.userId}`
+      );
+      console.log(
+        `[RevisionHistoryFetchService] [INFO] Worker threads: ${this.poolSize}`
+      );
+      console.log(
+        `[RevisionHistoryFetchService] [INFO] Started at: ${new Date().toISOString()}`
       );
       console.log(`${"=".repeat(70)}`);
 
@@ -386,7 +386,7 @@ export class RevisionHistoryFetchService {
       const tickets = await this.fetchAllTickets();
       if (tickets.length === 0) {
         console.log(
-          `[RevisionHistoryFetchService]   No tickets found, exiting...`
+          `[RevisionHistoryFetchService] [INFO] No tickets found, exiting...`
         );
         await this.terminateWorkerPool();
         return [];
@@ -394,7 +394,7 @@ export class RevisionHistoryFetchService {
 
       console.log(`\n${"=".repeat(70)}`);
       console.log(
-        `[RevisionHistoryFetchService]  Step 3: PROCESSING ${tickets.length} TICKETS WITH ${this.poolSize} WORKERS`
+        `[RevisionHistoryFetchService] [STEP 3] PROCESSING ${tickets.length} TICKETS WITH ${this.poolSize} WORKERS`
       );
       console.log(`${"=".repeat(70)}\n`);
 
@@ -411,7 +411,7 @@ export class RevisionHistoryFetchService {
         const totalBatches = Math.ceil(tickets.length / batchSize);
 
         console.log(
-          `\n[RevisionHistoryFetchService] 📦 Processing batch ${batchNumber}/${totalBatches} (${batch.length} tickets in parallel)...`
+          `\n[RevisionHistoryFetchService] [BATCH ${batchNumber}/${totalBatches}] Processing batch ${batchNumber}/${totalBatches} (${batch.length} tickets in parallel)...`
         );
 
         // Process batch in parallel using worker threads
@@ -429,7 +429,7 @@ export class RevisionHistoryFetchService {
           const recordId = result.ticket.airtableRecordId;
 
           console.log(
-            `\n[RevisionHistoryFetchService] 📌 [${processedCount}/${tickets.length}] ${recordId}`
+            `\n[RevisionHistoryFetchService] [RECORD ${processedCount}/${tickets.length}] ${recordId}`
           );
 
           if (
@@ -479,7 +479,7 @@ export class RevisionHistoryFetchService {
             successCount++;
           } else if (result.success && "revisions" in result) {
             console.log(
-              `[RevisionHistoryFetchService] ⚪ No revision history found`
+              `[RevisionHistoryFetchService] [INFO] No revision history found`
             );
             successCount++;
           } else if (!result.success && "error" in result) {
@@ -501,7 +501,7 @@ export class RevisionHistoryFetchService {
         // Small delay between batches
         if (i + batchSize < tickets.length) {
           console.log(
-            `[RevisionHistoryFetchService] ⏳ Waiting 2s before next batch...`
+            `[RevisionHistoryFetchService] [WAIT] Waiting 2s before next batch...`
           );
           await new Promise((resolve) => setTimeout(resolve, 2000));
         }
@@ -526,7 +526,9 @@ export class RevisionHistoryFetchService {
       console.log(
         `[RevisionHistoryFetchService]  Failed: ${failedCount}/${tickets.length} tickets`
       );
-      console.log(`[RevisionHistoryFetchService] ⏱️  Total time: ${duration}s`);
+      console.log(
+        `[RevisionHistoryFetchService] [INFO] Total time: ${duration}s`
+      );
       console.log(
         `[RevisionHistoryFetchService]  Average: ${(
           tickets.length / parseFloat(duration)

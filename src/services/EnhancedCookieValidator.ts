@@ -41,7 +41,7 @@ export class EnhancedCookieValidator {
       console.log(" Connection found in database");
       console.log(` Cookies valid until: ${connection.cookiesValidUntil}`);
       console.log(
-        `🗄️ Has localStorage: ${connection.localStorage ? "YES" : "NO"}`
+        `[INFO] Has localStorage: ${connection.localStorage ? "YES" : "NO"}`
       );
       console.log(
         ` Has sessionData: ${(connection as any).sessionData ? "YES" : "NO"}`
@@ -206,7 +206,7 @@ export class EnhancedCookieValidator {
       console.log(" All authentication data stored successfully");
       console.log(` Valid until: ${validUntil}`);
       console.log(
-        `🗄️ localStorage keys: ${
+        `[INFO] localStorage keys: ${
           localStorage ? Object.keys(localStorage).length : 0
         }`
       );
