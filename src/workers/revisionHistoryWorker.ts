@@ -151,10 +151,10 @@ async function scrapeRevisionHistoryForTicket(
 
   try {
     const recordId = ticketData.airtableRecordId;
-    console.log(`[WORKER-${workerId}] 🔍 Scraping record: ${recordId}`);
+    console.log(`[WORKER-${workerId}]  Scraping record: ${recordId}`);
 
     // Launch browser
-    console.log(`[WORKER-${workerId}] 🌐 Launching browser...`);
+    console.log(`[WORKER-${workerId}]  Launching browser...`);
     browser = await puppeteer.launch({
       headless: true,
       executablePath: "/usr/bin/google-chrome",
@@ -232,7 +232,7 @@ async function scrapeRevisionHistoryForTicket(
       .filter((c) => c !== null);
 
     console.log(
-      `[WORKER-${workerId}] 🍪 Setting ${cookieObjects.length} cookies...`
+      `[WORKER-${workerId}]  Setting ${cookieObjects.length} cookies...`
     );
     for (const cookie of cookieObjects) {
       try {
@@ -265,7 +265,7 @@ async function scrapeRevisionHistoryForTicket(
     // Navigate to record page first
     const recordUrl = `https://airtable.com/${ticketData.baseId}/${ticketData.tableId}/viwfbZDPk6u7uvwdH/${recordId}?blocks=show`;
 
-    console.log(`[WORKER-${workerId}] 🌐 Navigating to record page...`);
+    console.log(`[WORKER-${workerId}]  Navigating to record page...`);
     try {
       await page.goto(recordUrl, {
         waitUntil: "networkidle0",
@@ -273,7 +273,7 @@ async function scrapeRevisionHistoryForTicket(
       });
     } catch (navError) {
       console.warn(
-        `[WORKER-${workerId}] ⚠️  Navigation timeout, continuing...`
+        `[WORKER-${workerId}]   Navigation timeout, continuing...`
       );
     }
 
@@ -319,13 +319,13 @@ async function scrapeRevisionHistoryForTicket(
 
     if (!response.ok) {
       console.error(
-        `[WORKER-${workerId}] ❌ API request failed (Status ${response.status})`
+        `[WORKER-${workerId}]  API request failed (Status ${response.status})`
       );
       await browser.close();
       return null;
     }
 
-    console.log(`[WORKER-${workerId}] ✅ API response received`);
+    console.log(`[WORKER-${workerId}]  API response received`);
 
     // Parse revision history
     const revisions: RevisionHistoryItem[] = [];
@@ -339,7 +339,7 @@ async function scrapeRevisionHistoryForTicket(
     const activityIds = Object.keys(activityInfoById);
 
     console.log(
-      `[WORKER-${workerId}] 📊 Found ${activityIds.length} activities`
+      `[WORKER-${workerId}]  Found ${activityIds.length} activities`
     );
 
     if (activityIds.length === 0) {
@@ -369,12 +369,12 @@ async function scrapeRevisionHistoryForTicket(
       }
     }
 
-    console.log(`[WORKER-${workerId}] ✅ Parsed ${revisions.length} revisions`);
+    console.log(`[WORKER-${workerId}]  Parsed ${revisions.length} revisions`);
 
     await browser.close();
     return revisions.length > 0 ? revisions : null;
   } catch (error) {
-    console.error(`[WORKER-${workerId}] ❌ Error scraping:`, error);
+    console.error(`[WORKER-${workerId}]  Error scraping:`, error);
     if (browser) {
       await browser.close();
     }

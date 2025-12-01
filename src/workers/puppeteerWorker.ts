@@ -121,7 +121,7 @@ async function handleLogin(data: any): Promise<any> {
       currentUrl.includes("auth/verify")
     ) {
       console.log(
-        "\n⚠️  MFA REQUIRED - Please complete MFA in the browser window"
+        "\n  MFA REQUIRED - Please complete MFA in the browser window"
       );
       console.log("👉 Enter your MFA code and click Submit button");
       console.log("⏳ Waiting for you to complete authentication...\n");
@@ -141,7 +141,7 @@ async function handleLogin(data: any): Promise<any> {
           },
           { timeout: 300000 } // 5 minutes
         );
-        console.log("✅ MFA completed successfully!");
+        console.log(" MFA completed successfully!");
         await sleep(5000); // Wait for session to fully stabilize
       } catch (error) {
         throw new Error(
@@ -266,7 +266,7 @@ async function handleLogin(data: any): Promise<any> {
             if (parsed.access_token || parsed.accessToken) {
               accessToken = parsed.access_token || parsed.accessToken;
               console.log(
-                "[PUPPETEER_WORKER] ✅ Found access token in localStorage"
+                "[PUPPETEER_WORKER]  Found access token in localStorage"
               );
               break;
             }
@@ -279,7 +279,7 @@ async function handleLogin(data: any): Promise<any> {
             ) {
               accessToken = value;
               console.log(
-                "[PUPPETEER_WORKER] ✅ Found potential direct access token"
+                "[PUPPETEER_WORKER]  Found potential direct access token"
               );
               break;
             }
@@ -305,7 +305,7 @@ async function handleLogin(data: any): Promise<any> {
           ) {
             tokenFromRequest = authHeader.replace("Bearer ", "");
             console.log(
-              "[PUPPETEER_WORKER] ✅ Captured access token from API request"
+              "[PUPPETEER_WORKER]  Captured access token from API request"
             );
           }
         });
@@ -363,7 +363,7 @@ async function handleLogin(data: any): Promise<any> {
 
         if (accessToken) {
           console.log(
-            "[PUPPETEER_WORKER] ✅ Extracted token from page context"
+            "[PUPPETEER_WORKER]  Extracted token from page context"
           );
         }
       }
@@ -373,7 +373,7 @@ async function handleLogin(data: any): Promise<any> {
 
     if (!accessToken) {
       console.log(
-        "[PUPPETEER_WORKER] ⚠️ Could not extract API access token - will rely on cookie-based auth"
+        "[PUPPETEER_WORKER]  Could not extract API access token - will rely on cookie-based auth"
       );
     }
 
@@ -596,7 +596,7 @@ async function handleScrapeRevisionHistory(data: any): Promise<any> {
     }
 
     console.log(
-      "[PUPPETEER_WORKER] ✅ Cookies validated! Now navigating to specific record..."
+      "[PUPPETEER_WORKER]  Cookies validated! Now navigating to specific record..."
     );
 
     // Navigate to the specific record/view
@@ -630,7 +630,7 @@ async function handleScrapeRevisionHistory(data: any): Promise<any> {
     }
 
     console.log(
-      "[PUPPETEER_WORKER] ✅ Successfully authenticated and navigated to record!"
+      "[PUPPETEER_WORKER]  Successfully authenticated and navigated to record!"
     );
 
     // Use provided viewId or extract from page

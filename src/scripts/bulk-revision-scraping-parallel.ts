@@ -71,24 +71,24 @@ class ParallelBulkRevisionScraper {
       });
 
       if (!connection || !connection.cookies) {
-        console.error(`❌ No cookies found for userId: ${this.userId}`);
+        console.error(` No cookies found for userId: ${this.userId}`);
         return false;
       }
 
       let cookieString = connection.cookies;
       if (isEncrypted(cookieString)) {
-        console.log("🔓 Decrypting cookies...");
+        console.log(" Decrypting cookies...");
         try {
           cookieString = decrypt(cookieString);
-          console.log("✅ Cookies decrypted successfully");
+          console.log(" Cookies decrypted successfully");
         } catch (error) {
-          console.error("❌ Failed to decrypt cookies:", error);
+          console.error(" Failed to decrypt cookies:", error);
           return false;
         }
       }
 
       this.cookies = cookieString;
-      console.log(`✅ Cookies retrieved (${cookieString.length} chars)`);
+      console.log(` Cookies retrieved (${cookieString.length} chars)`);
       console.log(
         `   Valid Until: ${
           connection.cookiesValidUntil
@@ -99,7 +99,7 @@ class ParallelBulkRevisionScraper {
 
       return true;
     } catch (error) {
-      console.error("❌ Error fetching cookies:", error);
+      console.error(" Error fetching cookies:", error);
       return false;
     }
   }
@@ -110,7 +110,7 @@ class ParallelBulkRevisionScraper {
   async fetchAllTickets(): Promise<TicketData[]> {
     try {
       console.log("\n" + "=".repeat(70));
-      console.log("🎫 STEP 2: FETCHING ALL TICKETS FROM MONGODB");
+      console.log(" STEP 2: FETCHING ALL TICKETS FROM MONGODB");
       console.log("=".repeat(70));
 
       const tickets = await Ticket.find({ userId: this.userId }).select(
@@ -118,11 +118,11 @@ class ParallelBulkRevisionScraper {
       );
 
       if (tickets.length === 0) {
-        console.warn(`⚠️  No tickets found for userId: ${this.userId}`);
+        console.warn(`  No tickets found for userId: ${this.userId}`);
         return [];
       }
 
-      console.log(`✅ Found ${tickets.length} tickets to process`);
+      console.log(` Found ${tickets.length} tickets to process`);
 
       return tickets.map((ticket) => ({
         airtableRecordId: ticket.airtableRecordId,
@@ -132,7 +132,7 @@ class ParallelBulkRevisionScraper {
         fields: ticket.fields,
       }));
     } catch (error) {
-      console.error("❌ Error fetching tickets:", error);
+      console.error(" Error fetching tickets:", error);
       return [];
     }
   }
@@ -216,7 +216,7 @@ class ParallelBulkRevisionScraper {
       const tickets = await this.fetchAllTickets();
 
       if (tickets.length === 0) {
-        console.log("❌ No tickets to process");
+        console.log(" No tickets to process");
         return;
       }
 
@@ -235,7 +235,7 @@ class ParallelBulkRevisionScraper {
         console.log(`   Batch ${index + 1}: ${batch.length} tickets`);
       });
 
-      console.log(`\n🚀 Launching ${actualWorkers} worker threads...\n`);
+      console.log(`\n Launching ${actualWorkers} worker threads...\n`);
 
       const startTime = Date.now();
 
@@ -250,13 +250,13 @@ class ParallelBulkRevisionScraper {
       const endTime = Date.now();
       const duration = ((endTime - startTime) / 1000).toFixed(2);
 
-      console.log(`\n✅ All workers completed in ${duration} seconds\n`);
+      console.log(`\n All workers completed in ${duration} seconds\n`);
 
       // Aggregate results
       workerResults.forEach((result, index) => {
         if (result.status === "fulfilled") {
           console.log(
-            `✅ Worker ${index + 1}: Processed ${result.value.length} tickets`
+            ` Worker ${index + 1}: Processed ${result.value.length} tickets`
           );
           this.results.push(...result.value);
         } else {
@@ -275,7 +275,7 @@ class ParallelBulkRevisionScraper {
             errorMessage = "Failed to parse error message";
           }
 
-          console.error(`❌ Worker ${index + 1}: Failed - ${errorMessage}`);
+          console.error(` Worker ${index + 1}: Failed - ${errorMessage}`);
           // Mark all tickets in this batch as errors
           batches[index].forEach((ticket) => {
             this.results.push({
@@ -288,7 +288,7 @@ class ParallelBulkRevisionScraper {
         }
       });
     } catch (error) {
-      console.error("❌ Error during parallel processing:", error);
+      console.error(" Error during parallel processing:", error);
       throw error;
     }
   }
@@ -298,7 +298,7 @@ class ParallelBulkRevisionScraper {
    */
   displayResults(): void {
     console.log("\n" + "=".repeat(70));
-    console.log("📊 FINAL RESULTS");
+    console.log(" FINAL RESULTS");
     console.log("=".repeat(70));
 
     const successCount = this.results.filter(
@@ -309,13 +309,13 @@ class ParallelBulkRevisionScraper {
     ).length;
     const errorCount = this.results.filter((r) => r.status === "error").length;
 
-    console.log(`\n📈 Summary:`);
+    console.log(`\n Summary:`);
     console.log(`   Total Processed: ${this.results.length}`);
-    console.log(`   ✅ Success: ${successCount}`);
+    console.log(`    Success: ${successCount}`);
     console.log(`   ⚪ No Data: ${noDataCount}`);
-    console.log(`   ❌ Errors: ${errorCount}`);
+    console.log(`    Errors: ${errorCount}`);
 
-    console.log(`\n📋 Detailed Results:\n`);
+    console.log(`\n Detailed Results:\n`);
 
     let counter = 1;
     for (const result of this.results) {
@@ -342,7 +342,7 @@ class ParallelBulkRevisionScraper {
   async execute(): Promise<void> {
     try {
       console.log("\n" + "=".repeat(70));
-      console.log("🚀 PARALLEL BULK REVISION HISTORY SCRAPER");
+      console.log(" PARALLEL BULK REVISION HISTORY SCRAPER");
       console.log("=".repeat(70));
       console.log(`👤 User ID: ${this.userId}`);
       console.log(`🧵 Available CPU Cores: ${os.cpus().length}`);
@@ -365,10 +365,10 @@ class ParallelBulkRevisionScraper {
       // Display results
       this.displayResults();
 
-      console.log("\n✅ SCRAPING COMPLETED SUCCESSFULLY!\n");
+      console.log("\n SCRAPING COMPLETED SUCCESSFULLY!\n");
       process.exit(0);
     } catch (error) {
-      console.error("\n❌ Fatal Error:", error);
+      console.error("\n Fatal Error:", error);
       process.exit(1);
     }
   }

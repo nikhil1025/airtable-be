@@ -14,21 +14,21 @@ const USER_ID = "user_1764525443009"; // Replace with your user ID
 async function runPerformanceTest() {
   try {
     console.log("\n" + "=".repeat(80));
-    console.log("🧪 WORKER THREAD PERFORMANCE TEST");
+    console.log(" WORKER THREAD PERFORMANCE TEST");
     console.log("=".repeat(80));
     console.log(`📍 MongoDB: ${MONGO_URI}`);
     console.log(`👤 User ID: ${USER_ID}`);
-    console.log(`⏰ Started at: ${new Date().toISOString()}`);
+    console.log(` Started at: ${new Date().toISOString()}`);
     console.log("=".repeat(80) + "\n");
 
     // Connect to MongoDB
     console.log("🔌 Connecting to MongoDB...");
     await mongoose.connect(MONGO_URI);
-    console.log("✅ MongoDB connected\n");
+    console.log(" MongoDB connected\n");
 
     // Initialize service with worker threads
     console.log(
-      "🚀 Initializing RevisionHistoryFetchService with worker threads..."
+      " Initializing RevisionHistoryFetchService with worker threads..."
     );
     const service = new RevisionHistoryFetchService(USER_ID);
 
@@ -37,7 +37,7 @@ async function runPerformanceTest() {
     console.log(`⏱️  Starting timer...\n`);
 
     // Execute fetch with worker threads
-    console.log("🔄 Starting parallel fetch with worker threads...");
+    console.log(" Starting parallel fetch with worker threads...");
     const results = await service.fetchAndStoreRevisionHistories();
 
     // End timer
@@ -46,25 +46,25 @@ async function runPerformanceTest() {
 
     // Display results
     console.log("\n" + "=".repeat(80));
-    console.log("📊 PERFORMANCE TEST RESULTS");
+    console.log(" PERFORMANCE TEST RESULTS");
     console.log("=".repeat(80));
     console.log(`⏱️  Total Execution Time: ${duration} seconds`);
     console.log(`📦 Total Revisions Fetched: ${results.length}`);
     console.log(
-      `🚀 Processing Rate: ${(results.length / parseFloat(duration)).toFixed(
+      ` Processing Rate: ${(results.length / parseFloat(duration)).toFixed(
         2
       )} revisions/second`
     );
-    console.log(`⏰ Completed at: ${new Date().toISOString()}`);
+    console.log(` Completed at: ${new Date().toISOString()}`);
     console.log("=".repeat(80) + "\n");
 
     // Performance summary
-    console.log("📈 PERFORMANCE SUMMARY:");
+    console.log(" PERFORMANCE SUMMARY:");
     console.log(`   ⚡ Execution time: ${duration}s`);
-    console.log(`   📊 Revisions: ${results.length}`);
+    console.log(`    Revisions: ${results.length}`);
     console.log(`   🎯 Success rate: 100%`);
     console.log(`   🧵 Worker threads: AUTO (CPU cores - 1)`);
-    console.log("\n✅ Test completed successfully!\n");
+    console.log("\n Test completed successfully!\n");
 
     // Disconnect
     await mongoose.disconnect();
@@ -72,7 +72,7 @@ async function runPerformanceTest() {
 
     process.exit(0);
   } catch (error) {
-    console.error("\n❌ ERROR during performance test:", error);
+    console.error("\n ERROR during performance test:", error);
     await mongoose.disconnect();
     process.exit(1);
   }

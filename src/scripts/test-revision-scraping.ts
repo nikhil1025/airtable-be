@@ -42,20 +42,20 @@ class RevisionHistoryScraper {
       console.log("=".repeat(70));
 
       await connectDatabase();
-      console.log("✅ Connected to MongoDB");
+      console.log(" Connected to MongoDB");
 
       const connection = await AirtableConnection.findOne({
         userId: this.userId,
       });
 
       if (!connection) {
-        console.error(`❌ No connection found for userId: ${this.userId}`);
-        console.log("\n💡 TIP: Make sure you have authenticated first using:");
+        console.error(` No connection found for userId: ${this.userId}`);
+        console.log("\n TIP: Make sure you have authenticated first using:");
         console.log("   POST /api/airtable/cookies/auto-retrieve");
         return false;
       }
 
-      console.log("✅ Connection found in database");
+      console.log(" Connection found in database");
       console.log(`   User ID: ${this.userId}`);
       console.log(`   Has Cookies: ${connection.cookies ? "YES" : "NO"}`);
       console.log(
@@ -67,8 +67,8 @@ class RevisionHistoryScraper {
       );
 
       if (!connection.cookies) {
-        console.error("❌ No cookies found in database");
-        console.log("\n💡 TIP: Run the cookie extraction first:");
+        console.error(" No cookies found in database");
+        console.log("\n TIP: Run the cookie extraction first:");
         console.log("   POST /api/airtable/cookies/auto-retrieve");
         return false;
       }
@@ -76,24 +76,24 @@ class RevisionHistoryScraper {
       // Decrypt cookies if they are encrypted
       let cookieString = connection.cookies;
       if (isEncrypted(cookieString)) {
-        console.log("🔓 Decrypting cookies...");
+        console.log(" Decrypting cookies...");
         try {
           cookieString = decrypt(cookieString);
-          console.log("✅ Cookies decrypted successfully");
+          console.log(" Cookies decrypted successfully");
         } catch (error) {
-          console.error("❌ Failed to decrypt cookies:", error);
+          console.error(" Failed to decrypt cookies:", error);
           console.log(
-            "💡 TIP: Cookies may be corrupted. Re-authenticate to get fresh cookies."
+            " TIP: Cookies may be corrupted. Re-authenticate to get fresh cookies."
           );
           return false;
         }
       }
 
       this.cookies = cookieString;
-      console.log(`✅ Cookies retrieved (${this.cookies.length} chars)`);
+      console.log(` Cookies retrieved (${this.cookies.length} chars)`);
       return true;
     } catch (error) {
-      console.error("❌ Error fetching cookies from DB:", error);
+      console.error(" Error fetching cookies from DB:", error);
       return false;
     }
   }
@@ -104,7 +104,7 @@ class RevisionHistoryScraper {
   async validateCookies(): Promise<boolean> {
     try {
       console.log("\n" + "=".repeat(70));
-      console.log("🔍 STEP 2: VALIDATING COOKIES");
+      console.log(" STEP 2: VALIDATING COOKIES");
       console.log("=".repeat(70));
 
       // Parse cookies to check for required ones
@@ -124,13 +124,13 @@ class RevisionHistoryScraper {
         }
       }
 
-      console.log(`📊 Total cookies found: ${Object.keys(cookieObj).length}`);
+      console.log(` Total cookies found: ${Object.keys(cookieObj).length}`);
 
       let allRequiredPresent = true;
       for (const required of requiredCookies) {
         const present = cookieObj[required] !== undefined;
         console.log(
-          `   ${present ? "✅" : "❌"} ${required}: ${
+          `   ${present ? "" : ""} ${required}: ${
             present ? "Present" : "MISSING"
           }`
         );
@@ -138,15 +138,15 @@ class RevisionHistoryScraper {
       }
 
       if (!allRequiredPresent) {
-        console.error("\n❌ Required cookies are missing!");
-        console.log("💡 TIP: Re-authenticate to get fresh cookies");
+        console.error("\n Required cookies are missing!");
+        console.log(" TIP: Re-authenticate to get fresh cookies");
         return false;
       }
 
-      console.log("\n✅ All required cookies are present");
+      console.log("\n All required cookies are present");
       return true;
     } catch (error) {
-      console.error("❌ Error validating cookies:", error);
+      console.error(" Error validating cookies:", error);
       return false;
     }
   }
@@ -157,10 +157,10 @@ class RevisionHistoryScraper {
   async launchBrowser(): Promise<boolean> {
     try {
       console.log("\n" + "=".repeat(70));
-      console.log("🌐 STEP 3: LAUNCHING CHROME BROWSER");
+      console.log(" STEP 3: LAUNCHING CHROME BROWSER");
       console.log("=".repeat(70));
 
-      console.log("🔧 Browser Configuration:");
+      console.log(" Browser Configuration:");
       console.log("   - OS: Ubuntu");
       console.log("   - Browser: Real Chrome (not Chromium)");
       console.log("   - Headless: No (for debugging)");
@@ -190,10 +190,10 @@ class RevisionHistoryScraper {
         ignoreDefaultArgs: ["--enable-automation"], // Don't show "Chrome is being controlled" banner
       });
 
-      console.log("✅ Browser launched successfully");
+      console.log(" Browser launched successfully");
 
       this.page = await this.browser.newPage();
-      console.log("✅ New page created");
+      console.log(" New page created");
 
       // Enable request interception to bypass CORS
       await this.page.setRequestInterception(true);
@@ -254,8 +254,8 @@ class RevisionHistoryScraper {
         "upgrade-insecure-requests": "1",
       });
 
-      console.log("✅ Headers configured");
-      console.log("✅ CORS bypass enabled");
+      console.log(" Headers configured");
+      console.log(" CORS bypass enabled");
 
       // Set cookies - parse and validate each cookie
       const cookieObjects = this.cookies
@@ -298,24 +298,24 @@ class RevisionHistoryScraper {
           successCount++;
         } catch (error) {
           failedCookies.push(cookie.name);
-          console.warn(`⚠️  Skipped invalid cookie: ${cookie.name}`);
+          console.warn(`  Skipped invalid cookie: ${cookie.name}`);
         }
       }
 
       console.log(
-        `✅ ${successCount}/${cookieObjects.length} cookies set in browser`
+        ` ${successCount}/${cookieObjects.length} cookies set in browser`
       );
 
       if (failedCookies.length > 0) {
-        console.log(`⚠️  Failed cookies: ${failedCookies.join(", ")}`);
+        console.log(`  Failed cookies: ${failedCookies.join(", ")}`);
       }
 
       return true;
     } catch (error) {
-      console.error("❌ Error launching browser:", error);
+      console.error(" Error launching browser:", error);
       if (error instanceof Error) {
         if (error.message.includes("google-chrome")) {
-          console.log("\n⚠️  CHROME NOT FOUND!");
+          console.log("\n  CHROME NOT FOUND!");
           console.log("Please install Google Chrome:");
           console.log(
             "   1. Download: wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb"
@@ -339,7 +339,7 @@ class RevisionHistoryScraper {
   async getTicketData(): Promise<TicketData | null> {
     try {
       console.log("\n" + "=".repeat(70));
-      console.log("🎫 STEP 4: FETCHING TICKET DATA FROM MONGODB");
+      console.log(" STEP 4: FETCHING TICKET DATA FROM MONGODB");
       console.log("=".repeat(70));
 
       // Use specific record ID that has revision history
@@ -352,19 +352,19 @@ class RevisionHistoryScraper {
       });
 
       if (!ticket) {
-        console.warn(`⚠️  Target record ${targetRecordId} not found`);
+        console.warn(`  Target record ${targetRecordId} not found`);
         console.log("   Falling back to first available ticket...");
 
         const fallbackTicket = await Ticket.findOne({ userId: this.userId });
 
         if (!fallbackTicket) {
-          console.error(`❌ No tickets found for userId: ${this.userId}`);
-          console.log("\n💡 TIP: Sync data first using:");
+          console.error(` No tickets found for userId: ${this.userId}`);
+          console.log("\n TIP: Sync data first using:");
           console.log("   POST /api/airtable/data/sync-fresh");
           return null;
         }
 
-        console.log("✅ Using fallback ticket:");
+        console.log(" Using fallback ticket:");
         console.log(`   Record ID: ${fallbackTicket.airtableRecordId}`);
         console.log(`   Row ID: ${fallbackTicket.rowId}`);
         console.log(`   Base ID: ${fallbackTicket.baseId}`);
@@ -379,7 +379,7 @@ class RevisionHistoryScraper {
         };
       }
 
-      console.log("✅ Target ticket found:");
+      console.log(" Target ticket found:");
       console.log(`   Record ID: ${ticket.airtableRecordId}`);
       console.log(`   Row ID: ${ticket.rowId}`);
       console.log(`   Base ID: ${ticket.baseId}`);
@@ -396,7 +396,7 @@ class RevisionHistoryScraper {
         fields: ticket.fields,
       };
     } catch (error) {
-      console.error("❌ Error fetching ticket data:", error);
+      console.error(" Error fetching ticket data:", error);
       return null;
     }
   }
@@ -409,7 +409,7 @@ class RevisionHistoryScraper {
   ): Promise<RevisionHistoryItem[]> {
     try {
       console.log("\n" + "=".repeat(70));
-      console.log("🔄 STEP 5: SCRAPING REVISION HISTORY");
+      console.log(" STEP 5: SCRAPING REVISION HISTORY");
       console.log("=".repeat(70));
 
       if (!this.page) {
@@ -418,7 +418,7 @@ class RevisionHistoryScraper {
 
       // Navigate to record page to access revision history UI
       const recordUrl = `https://airtable.com/${ticketData.baseId}/${ticketData.tableId}/viwfbZDPk6u7uvwdH/${ticketData.airtableRecordId}?blocks=show`;
-      console.log(`\n🌐 Navigating to record page...`);
+      console.log(`\n Navigating to record page...`);
       console.log(`   URL: ${recordUrl}`);
 
       // Navigate with longer timeout and wait for network to settle
@@ -426,7 +426,7 @@ class RevisionHistoryScraper {
         waitUntil: "networkidle0", // Wait for all network activity to stop
         timeout: 60000, // 60 second timeout
       });
-      console.log("✅ Page loaded");
+      console.log(" Page loaded");
 
       // Wait for Airtable app to fully initialize
       console.log("\n⏳ Waiting for Airtable app to load...");
@@ -447,13 +447,13 @@ class RevisionHistoryScraper {
       });
 
       if (pageLoaded) {
-        console.log("✅ Airtable app loaded successfully");
+        console.log(" Airtable app loaded successfully");
       } else {
-        console.warn("⚠️  Page may not have loaded completely");
+        console.warn("  Page may not have loaded completely");
       }
 
       // Try to click on Activity/History tab if it exists
-      console.log("\n🔍 Looking for Activity/History section...");
+      console.log("\n Looking for Activity/History section...");
       try {
         // Look for common selectors for activity/history tabs
         const historySelectors = [
@@ -473,7 +473,7 @@ class RevisionHistoryScraper {
             const element = await this.page.$(selector);
             if (element) {
               await element.click();
-              console.log(`✅ Clicked on activity/history tab: ${selector}`);
+              console.log(` Clicked on activity/history tab: ${selector}`);
               clicked = true;
               await new Promise((resolve) => setTimeout(resolve, 2000));
               break;
@@ -484,10 +484,10 @@ class RevisionHistoryScraper {
         }
 
         if (!clicked) {
-          console.log("⚠️  Could not find activity tab - will use API method");
+          console.log("  Could not find activity tab - will use API method");
         }
       } catch (error) {
-        console.log("⚠️  Activity tab not found - proceeding with API method");
+        console.log("  Activity tab not found - proceeding with API method");
       }
 
       // Build the API URL
@@ -511,7 +511,7 @@ class RevisionHistoryScraper {
 
       const fullUrl = `${apiUrl}?${params.toString()}`;
 
-      console.log("\n🌐 Making API Request:");
+      console.log("\n Making API Request:");
       console.log(`   Endpoint: ${apiUrl}`);
       console.log(`   Record ID: ${recordId}`);
 
@@ -555,7 +555,7 @@ class RevisionHistoryScraper {
       console.log(`   Status: ${response.status} ${response.statusText}`);
 
       if (!response.ok) {
-        console.error("❌ API request failed!");
+        console.error(" API request failed!");
         console.error(
           `   Error: ${JSON.stringify(
             response.data || response.error,
@@ -565,7 +565,7 @@ class RevisionHistoryScraper {
         );
 
         if (response.status === 401) {
-          console.log("\n⚠️  AUTHENTICATION FAILED!");
+          console.log("\n  AUTHENTICATION FAILED!");
           console.log(
             "   Your cookies may have expired. Please re-authenticate."
           );
@@ -574,7 +574,7 @@ class RevisionHistoryScraper {
         return [];
       }
 
-      console.log("✅ API request successful!");
+      console.log(" API request successful!");
 
       // Parse the revision history from response
       const revisionHistory = this.parseRevisionHistory(
@@ -582,12 +582,12 @@ class RevisionHistoryScraper {
         recordId
       );
 
-      console.log(`\n📊 SCRAPING RESULTS:`);
+      console.log(`\n SCRAPING RESULTS:`);
       console.log(`   Total revisions found: ${revisionHistory.length}`);
 
       return revisionHistory;
     } catch (error) {
-      console.error("❌ Error scraping revision history:", error);
+      console.error(" Error scraping revision history:", error);
       return [];
     }
   }
@@ -686,7 +686,7 @@ class RevisionHistoryScraper {
         }
       });
     } catch (error) {
-      console.error("❌ Error parsing HTML diff:", error);
+      console.error(" Error parsing HTML diff:", error);
     }
 
     return changes;
@@ -703,7 +703,7 @@ class RevisionHistoryScraper {
 
     try {
       if (!apiResponse || !apiResponse.data) {
-        console.log("⚠️  No data in API response");
+        console.log("  No data in API response");
         return revisions;
       }
 
@@ -713,7 +713,7 @@ class RevisionHistoryScraper {
 
       const activityIds = Object.keys(activityInfoById);
 
-      console.log(`\n🔍 Parsing response data...`);
+      console.log(`\n Parsing response data...`);
       console.log(`   Activities found: ${activityIds.length}`);
       console.log(`   Users found: ${Object.keys(userMap).length}`);
 
@@ -723,7 +723,7 @@ class RevisionHistoryScraper {
         const userId = activity.originatingUserId;
         const user = userMap[userId];
 
-        console.log(`\n   📝 Activity ID: ${activityId}`);
+        console.log(`\n    Activity ID: ${activityId}`);
         console.log(`      Created: ${activity.createdTime}`);
         console.log(
           `      User: ${user?.name || user?.email || "Unknown"} (${userId})`
@@ -757,10 +757,10 @@ class RevisionHistoryScraper {
       }
 
       console.log(
-        `\n✅ Parsed ${revisions.length} revision items from ${activityIds.length} activities`
+        `\n Parsed ${revisions.length} revision items from ${activityIds.length} activities`
       );
     } catch (error) {
-      console.error("❌ Error parsing revision history:", error);
+      console.error(" Error parsing revision history:", error);
     }
 
     return revisions;
@@ -789,7 +789,7 @@ class RevisionHistoryScraper {
 
     if (this.browser) {
       await this.browser.close();
-      console.log("✅ Browser closed");
+      console.log(" Browser closed");
     }
   }
 
@@ -799,36 +799,36 @@ class RevisionHistoryScraper {
   async run(): Promise<void> {
     try {
       console.log("\n" + "=".repeat(70));
-      console.log("🚀 AIRTABLE REVISION HISTORY SCRAPING TEST");
+      console.log(" AIRTABLE REVISION HISTORY SCRAPING TEST");
       console.log("=".repeat(70));
-      console.log(`📋 Test User ID: ${this.userId}`);
-      console.log(`⏰ Started at: ${new Date().toISOString()}`);
+      console.log(` Test User ID: ${this.userId}`);
+      console.log(` Started at: ${new Date().toISOString()}`);
 
       // Step 1: Fetch cookies from MongoDB
       const cookiesFetched = await this.fetchCookiesFromDB();
       if (!cookiesFetched) {
-        console.log("\n❌ TEST FAILED: Could not fetch cookies");
+        console.log("\n TEST FAILED: Could not fetch cookies");
         return;
       }
 
       // Step 2: Validate cookies
       const cookiesValid = await this.validateCookies();
       if (!cookiesValid) {
-        console.log("\n❌ TEST FAILED: Cookies validation failed");
+        console.log("\n TEST FAILED: Cookies validation failed");
         return;
       }
 
       // Step 3: Launch browser
       const browserLaunched = await this.launchBrowser();
       if (!browserLaunched) {
-        console.log("\n❌ TEST FAILED: Could not launch browser");
+        console.log("\n TEST FAILED: Could not launch browser");
         return;
       }
 
       // Step 4: Get ticket data
       const ticketData = await this.getTicketData();
       if (!ticketData) {
-        console.log("\n❌ TEST FAILED: Could not fetch ticket data");
+        console.log("\n TEST FAILED: Could not fetch ticket data");
         await this.cleanup();
         return;
       }
@@ -838,10 +838,10 @@ class RevisionHistoryScraper {
 
       // Final results
       console.log("\n" + "=".repeat(70));
-      console.log("🎉 TEST COMPLETED");
+      console.log(" TEST COMPLETED");
       console.log("=".repeat(70));
-      console.log(`✅ Total revisions scraped: ${revisions.length}`);
-      console.log(`⏰ Completed at: ${new Date().toISOString()}`);
+      console.log(` Total revisions scraped: ${revisions.length}`);
+      console.log(` Completed at: ${new Date().toISOString()}`);
 
       if (revisions.length > 0) {
         console.log("\n" + "=".repeat(70));
@@ -860,11 +860,11 @@ class RevisionHistoryScraper {
         });
 
         console.log("\n" + "=".repeat(70));
-        console.log("📋 REVISION HISTORY JSON (Ready for Database)");
+        console.log(" REVISION HISTORY JSON (Ready for Database)");
         console.log("=".repeat(70));
         console.log(JSON.stringify(revisions, null, 2));
       } else {
-        console.log("\n⚠️  No revision history found for this record.");
+        console.log("\n  No revision history found for this record.");
         console.log("   This record may not have any field changes yet.");
         console.log(
           "   Try editing a field in Airtable and run the script again."

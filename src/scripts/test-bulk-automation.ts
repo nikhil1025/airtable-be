@@ -3,32 +3,32 @@ import { AirtableConnection, RevisionHistory, Ticket } from "../models";
 
 async function testBulkRevisionAutomation() {
   try {
-    console.log("🧪 TESTING BULK REVISION HISTORY AUTOMATION");
+    console.log(" TESTING BULK REVISION HISTORY AUTOMATION");
     console.log("=".repeat(60));
 
     await connectDatabase();
-    console.log("✅ Connected to database");
+    console.log(" Connected to database");
 
     const userId = "user_1764311628981";
 
     // Show current state
-    console.log("\n📊 CURRENT DATABASE STATE:");
+    console.log("\n CURRENT DATABASE STATE:");
     console.log("-".repeat(40));
 
     const ticketCount = await Ticket.countDocuments({ userId });
     const connectionExists = await AirtableConnection.exists({ userId });
     const existingRevisions = await RevisionHistory.countDocuments({ userId });
 
-    console.log(`🎫 Total tickets: ${ticketCount}`);
-    console.log(`🔗 Connection exists: ${connectionExists ? "YES" : "NO"}`);
-    console.log(`📋 Existing revisions: ${existingRevisions}`);
+    console.log(` Total tickets: ${ticketCount}`);
+    console.log(` Connection exists: ${connectionExists ? "YES" : "NO"}`);
+    console.log(` Existing revisions: ${existingRevisions}`);
 
     // Show sample tickets
     const sampleTickets = await Ticket.find({ userId })
       .select("airtableRecordId title status baseId tableId")
       .limit(5);
 
-    console.log("\n📋 SAMPLE TICKETS:");
+    console.log("\n SAMPLE TICKETS:");
     console.log("-".repeat(40));
     sampleTickets.forEach((ticket, index) => {
       const ticketData = ticket as any;
@@ -39,7 +39,7 @@ async function testBulkRevisionAutomation() {
     });
 
     // Test the API endpoint
-    console.log("\n🚀 TO START AUTOMATION:");
+    console.log("\n TO START AUTOMATION:");
     console.log("-".repeat(40));
     console.log("Make POST request to:");
     console.log(
@@ -49,7 +49,7 @@ async function testBulkRevisionAutomation() {
     console.log("Headers: Content-Type: application/json");
     console.log(`Body: {"userId": "${userId}"}`);
 
-    console.log("\n📞 CURL COMMAND:");
+    console.log("\n CURL COMMAND:");
     console.log(
       `curl -X POST http://localhost:3000/api/airtable/revision-history/bulk-automation \\`
     );
@@ -58,17 +58,17 @@ async function testBulkRevisionAutomation() {
 
     console.log("\n⚡ WHAT THE AUTOMATION WILL DO:");
     console.log("-".repeat(40));
-    console.log("1. ✅ Get all tickets from MongoDB (airtableRecordId field)");
+    console.log("1.  Get all tickets from MongoDB (airtableRecordId field)");
     console.log(
-      "2. ✅ Validate cookies properly with all auth/localStorage data"
+      "2.  Validate cookies properly with all auth/localStorage data"
     );
-    console.log("3. ✅ Create URL list with exact format you specified");
-    console.log("4. ✅ Iterate through each record hitting the endpoint");
-    console.log("5. ✅ Extract revision history in your specified JSON format");
-    console.log("6. ✅ Store in revision history collection");
-    console.log("7. ✅ Print everything to terminal with detailed logging");
+    console.log("3.  Create URL list with exact format you specified");
+    console.log("4.  Iterate through each record hitting the endpoint");
+    console.log("5.  Extract revision history in your specified JSON format");
+    console.log("6.  Store in revision history collection");
+    console.log("7.  Print everything to terminal with detailed logging");
 
-    console.log("\n📋 EXPECTED OUTPUT FORMAT:");
+    console.log("\n EXPECTED OUTPUT FORMAT:");
     console.log("-".repeat(40));
     console.log("[");
     console.log("  {");
@@ -95,7 +95,7 @@ async function testBulkRevisionAutomation() {
 
     console.log("\n✨ AUTOMATION IS READY TO RUN!");
   } catch (error) {
-    console.error("❌ Error:", error);
+    console.error(" Error:", error);
   } finally {
     process.exit(0);
   }

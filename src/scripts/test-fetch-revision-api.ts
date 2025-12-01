@@ -11,10 +11,10 @@ async function main() {
     const userId = process.argv[2] || "user_1764525443009";
 
     console.log("\n" + "=".repeat(70));
-    console.log("🚀 STANDALONE REVISION HISTORY FETCH TEST");
+    console.log(" STANDALONE REVISION HISTORY FETCH TEST");
     console.log("=".repeat(70));
     console.log(`👤 User ID: ${userId}`);
-    console.log(`⏰ Started at: ${new Date().toISOString()}`);
+    console.log(` Started at: ${new Date().toISOString()}`);
     console.log("=".repeat(70) + "\n");
 
     // Connect to database
@@ -25,10 +25,10 @@ async function main() {
     const revisions = await service.fetchAndStoreRevisionHistories();
 
     console.log("\n" + "=".repeat(70));
-    console.log("📋 FINAL SUMMARY");
+    console.log(" FINAL SUMMARY");
     console.log("=".repeat(70));
-    console.log(`✅ Total Revisions Stored: ${revisions.length}`);
-    console.log(`⏰ Completed at: ${new Date().toISOString()}`);
+    console.log(` Total Revisions Stored: ${revisions.length}`);
+    console.log(` Completed at: ${new Date().toISOString()}`);
     console.log("=".repeat(70) + "\n");
 
     // Display results like the parallel script
@@ -55,7 +55,7 @@ async function main() {
     });
 
     console.log("\n" + "=".repeat(70));
-    console.log("📋 Detailed Results");
+    console.log(" Detailed Results");
     console.log("=".repeat(70) + "\n");
 
     let counter = 1;
@@ -71,7 +71,7 @@ async function main() {
     }
 
     console.log("\n" + "=".repeat(70));
-    console.log("✅ SCRAPING COMPLETED SUCCESSFULLY!");
+    console.log(" SCRAPING COMPLETED SUCCESSFULLY!");
     console.log("=".repeat(70) + "\n");
 
     process.exit(0);

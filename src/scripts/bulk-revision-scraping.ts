@@ -69,24 +69,24 @@ class BulkRevisionHistoryScraper {
       });
 
       if (!connection || !connection.cookies) {
-        console.error(`❌ No cookies found for userId: ${this.userId}`);
+        console.error(` No cookies found for userId: ${this.userId}`);
         return false;
       }
 
       let cookieString = connection.cookies;
       if (isEncrypted(cookieString)) {
-        console.log("🔓 Decrypting cookies...");
+        console.log(" Decrypting cookies...");
         try {
           cookieString = decrypt(cookieString);
-          console.log("✅ Cookies decrypted successfully");
+          console.log(" Cookies decrypted successfully");
         } catch (error) {
-          console.error("❌ Failed to decrypt cookies:", error);
+          console.error(" Failed to decrypt cookies:", error);
           return false;
         }
       }
 
       this.cookies = cookieString;
-      console.log(`✅ Cookies retrieved (${cookieString.length} chars)`);
+      console.log(` Cookies retrieved (${cookieString.length} chars)`);
       console.log(
         `   Valid Until: ${
           connection.cookiesValidUntil
@@ -97,7 +97,7 @@ class BulkRevisionHistoryScraper {
 
       return true;
     } catch (error) {
-      console.error("❌ Error fetching cookies:", error);
+      console.error(" Error fetching cookies:", error);
       return false;
     }
   }
@@ -108,11 +108,11 @@ class BulkRevisionHistoryScraper {
   validateCookies(): boolean {
     try {
       console.log("\n" + "=".repeat(70));
-      console.log("🔍 STEP 2: VALIDATING COOKIES");
+      console.log(" STEP 2: VALIDATING COOKIES");
       console.log("=".repeat(70));
 
       const cookieArray = this.cookies.split(";").map((c) => c.trim());
-      console.log(`📊 Total cookies found: ${cookieArray.length}`);
+      console.log(` Total cookies found: ${cookieArray.length}`);
 
       const requiredCookies = [
         "__Host-airtable-session",
@@ -123,17 +123,17 @@ class BulkRevisionHistoryScraper {
       for (const required of requiredCookies) {
         const found = cookieArray.some((c) => c.startsWith(required));
         if (found) {
-          console.log(`   ✅ ${required}: Present`);
+          console.log(`    ${required}: Present`);
         } else {
-          console.log(`   ❌ ${required}: Missing`);
+          console.log(`    ${required}: Missing`);
           return false;
         }
       }
 
-      console.log("\n✅ All required cookies are present");
+      console.log("\n All required cookies are present");
       return true;
     } catch (error) {
-      console.error("❌ Error validating cookies:", error);
+      console.error(" Error validating cookies:", error);
       return false;
     }
   }
@@ -144,7 +144,7 @@ class BulkRevisionHistoryScraper {
   async launchBrowser(): Promise<boolean> {
     try {
       console.log("\n" + "=".repeat(70));
-      console.log("🌐 STEP 3: LAUNCHING CHROME BROWSER");
+      console.log(" STEP 3: LAUNCHING CHROME BROWSER");
       console.log("=".repeat(70));
 
       this.browser = await puppeteer.launch({
@@ -170,10 +170,10 @@ class BulkRevisionHistoryScraper {
         ignoreDefaultArgs: ["--enable-automation"],
       });
 
-      console.log("✅ Browser launched successfully");
+      console.log(" Browser launched successfully");
 
       this.page = await this.browser.newPage();
-      console.log("✅ New page created");
+      console.log(" New page created");
 
       // Enable request interception
       await this.page.setRequestInterception(true);
@@ -203,8 +203,8 @@ class BulkRevisionHistoryScraper {
         "sec-ch-ua-platform": '"Linux"',
       });
 
-      console.log("✅ Headers configured");
-      console.log("✅ CORS bypass enabled");
+      console.log(" Headers configured");
+      console.log(" CORS bypass enabled");
 
       // Set cookies
       const cookieObjects = this.cookies
@@ -235,14 +235,14 @@ class BulkRevisionHistoryScraper {
           await this.page.setCookie(cookie as any);
           successCount++;
         } catch (error) {
-          console.warn(`⚠️  Failed to set cookie: ${cookie!.name}`);
+          console.warn(`  Failed to set cookie: ${cookie!.name}`);
         }
       }
 
-      console.log(`✅ ${successCount}/${cookieObjects.length} cookies set`);
+      console.log(` ${successCount}/${cookieObjects.length} cookies set`);
       return true;
     } catch (error) {
-      console.error("❌ Error launching browser:", error);
+      console.error(" Error launching browser:", error);
       return false;
     }
   }
@@ -253,17 +253,17 @@ class BulkRevisionHistoryScraper {
   async fetchAllTickets(): Promise<TicketData[]> {
     try {
       console.log("\n" + "=".repeat(70));
-      console.log("🎫 STEP 4: FETCHING ALL TICKETS FROM MONGODB");
+      console.log(" STEP 4: FETCHING ALL TICKETS FROM MONGODB");
       console.log("=".repeat(70));
 
       const tickets = await Ticket.find({ userId: this.userId }).select(
         "airtableRecordId rowId baseId tableId fields"
       );
 
-      console.log(`✅ Found ${tickets.length} tickets for user ${this.userId}`);
+      console.log(` Found ${tickets.length} tickets for user ${this.userId}`);
 
       if (tickets.length === 0) {
-        console.warn("⚠️  No tickets found. Sync data first.");
+        console.warn("  No tickets found. Sync data first.");
         return [];
       }
 
@@ -275,7 +275,7 @@ class BulkRevisionHistoryScraper {
         fields: ticket.fields,
       }));
     } catch (error) {
-      console.error("❌ Error fetching tickets:", error);
+      console.error(" Error fetching tickets:", error);
       return [];
     }
   }
@@ -361,7 +361,7 @@ class BulkRevisionHistoryScraper {
         }
       });
     } catch (error) {
-      console.error("❌ Error parsing HTML diff:", error);
+      console.error(" Error parsing HTML diff:", error);
     }
 
     return changes;
@@ -423,7 +423,7 @@ class BulkRevisionHistoryScraper {
         });
       } catch (navError) {
         console.warn(
-          `   ⚠️  Navigation timeout for ${recordId}, continuing...`
+          `     Navigation timeout for ${recordId}, continuing...`
         );
       }
 
@@ -468,7 +468,7 @@ class BulkRevisionHistoryScraper {
 
       if (!response.ok) {
         console.error(
-          `   ❌ API request failed (Status ${response.status}): ${response.statusText}`
+          `    API request failed (Status ${response.status}): ${response.statusText}`
         );
         return null;
       }
@@ -511,7 +511,7 @@ class BulkRevisionHistoryScraper {
 
       return revisions.length > 0 ? revisions : null;
     } catch (error) {
-      console.error(`   ❌ Error scraping record:`, error);
+      console.error(`    Error scraping record:`, error);
       throw error;
     }
   }
@@ -521,9 +521,9 @@ class BulkRevisionHistoryScraper {
    */
   async processAllTickets(tickets: TicketData[]): Promise<void> {
     console.log("\n" + "=".repeat(70));
-    console.log("🔄 STEP 5: PROCESSING ALL TICKETS");
+    console.log(" STEP 5: PROCESSING ALL TICKETS");
     console.log("=".repeat(70));
-    console.log(`📋 Total tickets to process: ${tickets.length}\n`);
+    console.log(` Total tickets to process: ${tickets.length}\n`);
 
     for (let i = 0; i < tickets.length; i++) {
       const ticket = tickets[i];
@@ -535,14 +535,14 @@ class BulkRevisionHistoryScraper {
         const revisions = await this.scrapeRevisionHistoryForTicket(ticket);
 
         if (revisions === null) {
-          console.log(`   ⚠️  No revision history found`);
+          console.log(`     No revision history found`);
           this.results.push({
             recordId,
             status: "no_data",
             revisions: null,
           });
         } else {
-          console.log(`   ✅ Found ${revisions.length} revision items`);
+          console.log(`    Found ${revisions.length} revision items`);
           this.results.push({
             recordId,
             status: "success",
@@ -550,7 +550,7 @@ class BulkRevisionHistoryScraper {
           });
         }
       } catch (error: any) {
-        console.error(`   ❌ Error: ${error.message}`);
+        console.error(`    Error: ${error.message}`);
         this.results.push({
           recordId,
           status: "error",
@@ -569,7 +569,7 @@ class BulkRevisionHistoryScraper {
    */
   displayResults(): void {
     console.log("\n" + "=".repeat(70));
-    console.log("📊 PROCESSING RESULTS");
+    console.log(" PROCESSING RESULTS");
     console.log("=".repeat(70));
 
     const successCount = this.results.filter(
@@ -580,9 +580,9 @@ class BulkRevisionHistoryScraper {
     ).length;
     const errorCount = this.results.filter((r) => r.status === "error").length;
 
-    console.log(`\n✅ Success: ${successCount}`);
-    console.log(`⚠️  No Data: ${noDataCount}`);
-    console.log(`❌ Errors: ${errorCount}`);
+    console.log(`\n Success: ${successCount}`);
+    console.log(`  No Data: ${noDataCount}`);
+    console.log(` Errors: ${errorCount}`);
 
     console.log("\n" + "=".repeat(70));
     console.log("📄 DETAILED RESULTS");
@@ -602,7 +602,7 @@ class BulkRevisionHistoryScraper {
     }
 
     console.log("\n" + "=".repeat(70));
-    console.log("📋 SUMMARY JSON");
+    console.log(" SUMMARY JSON");
     console.log("=".repeat(70));
     console.log(JSON.stringify(this.results, null, 2));
   }
@@ -617,7 +617,7 @@ class BulkRevisionHistoryScraper {
 
     if (this.browser) {
       await this.browser.close();
-      console.log("✅ Browser closed");
+      console.log(" Browser closed");
     }
   }
 
@@ -627,40 +627,40 @@ class BulkRevisionHistoryScraper {
   async run(): Promise<void> {
     try {
       console.log("\n" + "=".repeat(70));
-      console.log("🚀 BULK AIRTABLE REVISION HISTORY SCRAPER");
+      console.log(" BULK AIRTABLE REVISION HISTORY SCRAPER");
       console.log("=".repeat(70));
-      console.log(`📋 User ID: ${this.userId}`);
-      console.log(`⏰ Started at: ${new Date().toISOString()}`);
+      console.log(` User ID: ${this.userId}`);
+      console.log(` Started at: ${new Date().toISOString()}`);
 
       // Connect to database
       await connectDatabase();
-      console.log("✅ Connected to MongoDB");
+      console.log(" Connected to MongoDB");
 
       // Step 1: Fetch cookies
       const cookiesFetched = await this.fetchCookiesFromDB();
       if (!cookiesFetched) {
-        console.log("\n❌ FAILED: Could not fetch cookies");
+        console.log("\n FAILED: Could not fetch cookies");
         return;
       }
 
       // Step 2: Validate cookies
       const cookiesValid = this.validateCookies();
       if (!cookiesValid) {
-        console.log("\n❌ FAILED: Cookies validation failed");
+        console.log("\n FAILED: Cookies validation failed");
         return;
       }
 
       // Step 3: Launch browser
       const browserLaunched = await this.launchBrowser();
       if (!browserLaunched) {
-        console.log("\n❌ FAILED: Could not launch browser");
+        console.log("\n FAILED: Could not launch browser");
         return;
       }
 
       // Step 4: Fetch all tickets
       const tickets = await this.fetchAllTickets();
       if (tickets.length === 0) {
-        console.log("\n❌ FAILED: No tickets found");
+        console.log("\n FAILED: No tickets found");
         await this.cleanup();
         return;
       }
@@ -672,9 +672,9 @@ class BulkRevisionHistoryScraper {
       this.displayResults();
 
       console.log("\n" + "=".repeat(70));
-      console.log("🎉 BULK PROCESSING COMPLETED");
+      console.log(" BULK PROCESSING COMPLETED");
       console.log("=".repeat(70));
-      console.log(`⏰ Completed at: ${new Date().toISOString()}`);
+      console.log(` Completed at: ${new Date().toISOString()}`);
 
       // Cleanup
       await this.cleanup();
@@ -691,7 +691,7 @@ async function main() {
   const TEST_USER_ID = process.argv[2] || "user_1764525443009";
 
   console.log(
-    `\n📋 Running bulk revision history scraper for user: ${TEST_USER_ID}`
+    `\n Running bulk revision history scraper for user: ${TEST_USER_ID}`
   );
 
   const scraper = new BulkRevisionHistoryScraper(TEST_USER_ID);

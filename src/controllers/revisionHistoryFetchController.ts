@@ -32,9 +32,9 @@ export const fetchRevisionHistoriesForUser = async (
     }
 
     console.log(`\n${"=".repeat(70)}`);
-    console.log(`🚀 FETCHING REVISION HISTORIES FOR USER: ${userId}`);
+    console.log(` FETCHING REVISION HISTORIES FOR USER: ${userId}`);
     console.log(`${"=".repeat(70)}`);
-    console.log(`⏰ Started at: ${new Date().toISOString()}\n`);
+    console.log(` Started at: ${new Date().toISOString()}\n`);
 
     // Create service instance
     const service = new RevisionHistoryFetchService(userId);
@@ -43,10 +43,10 @@ export const fetchRevisionHistoriesForUser = async (
     const revisions = await service.fetchAndStoreRevisionHistories();
 
     console.log(`\n${"=".repeat(70)}`);
-    console.log(`✅ FETCH COMPLETED SUCCESSFULLY`);
+    console.log(` FETCH COMPLETED SUCCESSFULLY`);
     console.log(`${"=".repeat(70)}`);
-    console.log(`📊 Total Revision Items Stored: ${revisions.length}`);
-    console.log(`⏰ Completed at: ${new Date().toISOString()}`);
+    console.log(` Total Revision Items Stored: ${revisions.length}`);
+    console.log(` Completed at: ${new Date().toISOString()}`);
     console.log(`${"=".repeat(70)}\n`);
 
     // Fetch all revision histories for this user from DB
@@ -55,7 +55,7 @@ export const fetchRevisionHistoriesForUser = async (
       .lean();
 
     console.log(`\n${"=".repeat(70)}`);
-    console.log(`📋 DETAILED RESULTS`);
+    console.log(` DETAILED RESULTS`);
     console.log(`${"=".repeat(70)}\n`);
 
     // Group by issueId for display
@@ -90,7 +90,7 @@ export const fetchRevisionHistoriesForUser = async (
     }
 
     console.log(`\n${"=".repeat(70)}`);
-    console.log(`✅ SCRAPING COMPLETED SUCCESSFULLY!`);
+    console.log(` SCRAPING COMPLETED SUCCESSFULLY!`);
     console.log(`${"=".repeat(70)}\n`);
 
     // Send response
@@ -446,13 +446,13 @@ export const scrapeSingleRecord = async (
     }
 
     console.log(`\n${"=".repeat(70)}`);
-    console.log(`🔍 SCRAPING SINGLE RECORD REVISION HISTORY`);
+    console.log(` SCRAPING SINGLE RECORD REVISION HISTORY`);
     console.log(`${"".repeat(70)}`);
     console.log(`👤 User ID: ${userId}`);
-    console.log(`📝 Record ID: ${recordId}`);
-    console.log(`📊 Base ID: ${baseId}`);
-    console.log(`📋 Table ID: ${tableId}`);
-    console.log(`⏰ Started at: ${new Date().toISOString()}\n`);
+    console.log(` Record ID: ${recordId}`);
+    console.log(` Base ID: ${baseId}`);
+    console.log(` Table ID: ${tableId}`);
+    console.log(` Started at: ${new Date().toISOString()}\n`);
 
     // Create service instance
     const service = new RevisionHistoryFetchService(userId);
@@ -465,10 +465,10 @@ export const scrapeSingleRecord = async (
     );
 
     console.log(`\n${"=".repeat(70)}`);
-    console.log(`✅ SCRAPING COMPLETED SUCCESSFULLY`);
+    console.log(` SCRAPING COMPLETED SUCCESSFULLY`);
     console.log(`${"=".repeat(70)}`);
-    console.log(`📊 Total Revision Items: ${revisions.length}`);
-    console.log(`⏰ Completed at: ${new Date().toISOString()}`);
+    console.log(` Total Revision Items: ${revisions.length}`);
+    console.log(` Completed at: ${new Date().toISOString()}`);
     console.log(`${"=".repeat(70)}\n`);
 
     res.status(200).json({

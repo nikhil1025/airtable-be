@@ -673,7 +673,7 @@ export class AirtableDataService {
       totalTables = baseResults.reduce((sum, r) => sum + r.tables, 0);
       totalTickets = baseResults.reduce((sum, r) => sum + r.tickets, 0);
 
-      logger.info("✅ Full sync completed successfully", {
+      logger.info(" Full sync completed successfully", {
         userId,
         totalBases,
         totalTables,

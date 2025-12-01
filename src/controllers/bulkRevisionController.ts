@@ -22,7 +22,7 @@ export async function bulkRevisionHistoryAutomation(
   res: Response
 ) {
   try {
-    console.log("\n🚀 STARTING BULK REVISION HISTORY AUTOMATION");
+    console.log("\n STARTING BULK REVISION HISTORY AUTOMATION");
     console.log("=".repeat(60));
 
     const { userId } = req.body;
@@ -34,7 +34,7 @@ export async function bulkRevisionHistoryAutomation(
     console.log(`👤 User ID: ${userId}`);
 
     // STEP 1: Get all tickets from MongoDB
-    console.log("\n📊 STEP 1: Fetching all tickets from MongoDB");
+    console.log("\n STEP 1: Fetching all tickets from MongoDB");
     console.log("-".repeat(40));
 
     const tickets = await Ticket.find({ userId }).select(
@@ -45,10 +45,10 @@ export async function bulkRevisionHistoryAutomation(
       throw new AppError("No tickets found for user", 404, "NO_TICKETS");
     }
 
-    console.log(`✅ Found ${tickets.length} tickets in database`);
+    console.log(` Found ${tickets.length} tickets in database`);
 
     // Print sample tickets
-    console.log("\n📋 Sample tickets:");
+    console.log("\n Sample tickets:");
     tickets.slice(0, 3).forEach((ticket, index) => {
       console.log(`${index + 1}. Record ID: ${ticket.airtableRecordId}`);
       console.log(`   Title: ${(ticket as any).title || "No title"}`);
@@ -59,7 +59,7 @@ export async function bulkRevisionHistoryAutomation(
 
     // STEP 2: Validate cookies properly with all auth data
     console.log(
-      "\n🍪 STEP 2: Validating ALL authentication data (cookies + localStorage + session)"
+      "\n STEP 2: Validating ALL authentication data (cookies + localStorage + session)"
     );
     console.log("-".repeat(40));
 
@@ -74,13 +74,13 @@ export async function bulkRevisionHistoryAutomation(
       );
     }
 
-    console.log("✅ All authentication data validated successfully");
-    console.log(`📝 Status: ${authValidation.message}`);
+    console.log(" All authentication data validated successfully");
+    console.log(` Status: ${authValidation.message}`);
 
     const { cookies, localStorage, sessionData } = authValidation;
 
     // STEP 3: Create URL list with exact format
-    console.log("\n🔗 STEP 3: Creating URL list with exact format");
+    console.log("\n STEP 3: Creating URL list with exact format");
     console.log("-".repeat(40));
 
     const urlList: Array<{
@@ -126,10 +126,10 @@ export async function bulkRevisionHistoryAutomation(
       });
     });
 
-    console.log(`✅ Created ${urlList.length} URLs for processing`);
+    console.log(` Created ${urlList.length} URLs for processing`);
 
     // Show sample URLs
-    console.log("\n🔍 Sample URLs:");
+    console.log("\n Sample URLs:");
     urlList.slice(0, 2).forEach((item, index) => {
       console.log(`${index + 1}. Record: ${item.recordId}`);
       console.log(`   URL: ${item.url.substring(0, 100)}...`);
@@ -148,9 +148,9 @@ export async function bulkRevisionHistoryAutomation(
       const item = urlList[i];
 
       console.log(
-        `\n📋 Processing ${i + 1}/${urlList.length}: ${item.recordId}`
+        `\n Processing ${i + 1}/${urlList.length}: ${item.recordId}`
       );
-      console.log(`📝 Title: ${item.title}`);
+      console.log(` Title: ${item.title}`);
 
       try {
         // Make request to Airtable endpoint with complete auth headers
@@ -167,7 +167,7 @@ export async function bulkRevisionHistoryAutomation(
           timeout: 30000,
         });
 
-        console.log(`✅ API Response received (Status: ${response.status})`);
+        console.log(` API Response received (Status: ${response.status})`);
 
         // STEP 5: Extract revision history in specified JSON format
         const revisions = parseRevisionHistoryResponse(
@@ -176,7 +176,7 @@ export async function bulkRevisionHistoryAutomation(
         );
 
         if (revisions.length > 0) {
-          console.log(`📊 Found ${revisions.length} revision changes`);
+          console.log(` Found ${revisions.length} revision changes`);
 
           // Print revisions in requested format
           revisions.forEach((revision, revIndex) => {
@@ -186,7 +186,7 @@ export async function bulkRevisionHistoryAutomation(
               }" → "${revision.newValue}"`
             );
             console.log(
-              `      📅 ${revision.createdDate} by ${revision.authoredBy}`
+              `       ${revision.createdDate} by ${revision.authoredBy}`
             );
           });
 
@@ -205,7 +205,7 @@ export async function bulkRevisionHistoryAutomation(
       } catch (error) {
         failureCount++;
         console.error(
-          `❌ Failed to process ${item.recordId}:`,
+          ` Failed to process ${item.recordId}:`,
           (error as any).message
         );
 
@@ -217,7 +217,7 @@ export async function bulkRevisionHistoryAutomation(
     }
 
     // STEP 6: Store in revision history collection
-    console.log("\n💾 STEP 6: Storing revision history in database");
+    console.log("\n STEP 6: Storing revision history in database");
     console.log("-".repeat(40));
 
     let savedCount = 0;
@@ -251,15 +251,15 @@ export async function bulkRevisionHistoryAutomation(
       }
 
       console.log(
-        `✅ Saved ${savedCount} revision history records to database`
+        ` Saved ${savedCount} revision history records to database`
       );
     }
 
     // STEP 7: Print final results in requested format
-    console.log("\n🎉 AUTOMATION COMPLETE - FINAL RESULTS");
+    console.log("\n AUTOMATION COMPLETE - FINAL RESULTS");
     console.log("=".repeat(60));
 
-    console.log(`📊 SUMMARY:`);
+    console.log(` SUMMARY:`);
     console.log(`• Total tickets processed: ${urlList.length}`);
     console.log(`• Successful requests: ${successCount}`);
     console.log(`• Failed requests: ${failureCount}`);
@@ -268,7 +268,7 @@ export async function bulkRevisionHistoryAutomation(
 
     // Print all results in exact format requested
     if (allRevisionHistory.length > 0) {
-      console.log("\n📋 ALL REVISION HISTORY IN REQUESTED FORMAT:");
+      console.log("\n ALL REVISION HISTORY IN REQUESTED FORMAT:");
       console.log("=".repeat(60));
 
       const formattedOutput = allRevisionHistory.map((revision) => ({
@@ -294,7 +294,7 @@ export async function bulkRevisionHistoryAutomation(
         (r) => r.columnType !== "Status" && r.columnType !== "Assignee"
       ).length;
 
-      console.log("\n📈 BREAKDOWN BY COLUMN TYPE:");
+      console.log("\n BREAKDOWN BY COLUMN TYPE:");
       console.log(`• Status Changes: ${statusChanges}`);
       console.log(`• Assignee Changes: ${assigneeChanges}`);
       console.log(`• Other Changes: ${otherChanges}`);
@@ -322,7 +322,7 @@ export async function bulkRevisionHistoryAutomation(
       },
     });
   } catch (error) {
-    console.error("\n❌ AUTOMATION FAILED:", (error as any).message);
+    console.error("\n AUTOMATION FAILED:", (error as any).message);
     logger.error("Bulk revision history automation failed", error);
 
     const statusCode = (error as any).statusCode || 500;
@@ -344,7 +344,7 @@ function parseRevisionHistoryResponse(
   const revisions: RevisionChange[] = [];
 
   try {
-    console.log("🔍 Parsing API response...");
+    console.log(" Parsing API response...");
 
     // The response structure may vary, so we need to handle different formats
     let activities = [];
@@ -370,7 +370,7 @@ function parseRevisionHistoryResponse(
       activities = responseData.data.activities;
     }
 
-    console.log(`📋 Found ${activities.length} activities in response`);
+    console.log(` Found ${activities.length} activities in response`);
 
     // Process each activity
     for (const activity of activities) {
@@ -438,7 +438,7 @@ function parseRevisionHistoryResponse(
       }
     }
   } catch (error) {
-    console.error("❌ Error parsing response:", (error as any).message);
+    console.error(" Error parsing response:", (error as any).message);
   }
 
   return revisions;

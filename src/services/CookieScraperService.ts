@@ -551,7 +551,7 @@ export class CookieScraperService {
 
       if (cookieAge < fiveMinutesInMs) {
         console.log(
-          "✅ Cookies are fresh (extracted within last 5 minutes), skipping network validation"
+          " Cookies are fresh (extracted within last 5 minutes), skipping network validation"
         );
         logger.info("Cookies validated as fresh", {
           userId,
@@ -562,7 +562,7 @@ export class CookieScraperService {
 
       const cookiesString = decrypt(connection.cookies);
 
-      console.log("🔍 DEBUG: Raw decrypted cookie string:");
+      console.log(" DEBUG: Raw decrypted cookie string:");
       console.log("First 200 chars:", cookiesString.substring(0, 200));
       console.log("Type:", typeof cookiesString);
       console.log("Length:", cookiesString.length);
@@ -590,42 +590,42 @@ export class CookieScraperService {
 
       try {
         // Try parsing as JSON array (old format)
-        console.log("🔄 Attempting JSON parse...");
+        console.log(" Attempting JSON parse...");
         parsedCookies = JSON.parse(cookiesString) as Array<{
           name: string;
           value: string;
         }>;
         console.log(
-          "✅ JSON parse successful, cookie count:",
+          " JSON parse successful, cookie count:",
           parsedCookies.length
         );
         cookieHeader = parsedCookies
           .map((c) => `${c.name}=${c.value}`)
           .join("; ");
       } catch (jsonError) {
-        console.log("❌ JSON parse failed:", (jsonError as Error).message);
+        console.log(" JSON parse failed:", (jsonError as Error).message);
         console.log(
-          "🔄 Parsing as HTTP cookie string format (new auth system)"
+          " Parsing as HTTP cookie string format (new auth system)"
         );
 
         // Parse HTTP cookie string format: "name1=value1; name2=value2"
         parsedCookies = parseCookies(cookiesString);
         console.log(
-          "✅ HTTP cookie parsing successful, cookie count:",
+          " HTTP cookie parsing successful, cookie count:",
           parsedCookies.length
         );
         cookieHeader = cookiesString; // Already in correct format
       }
 
       console.log(
-        "🍪 Final cookie header (first 200 chars):",
+        " Final cookie header (first 200 chars):",
         cookieHeader.substring(0, 200)
       );
 
       // For recently extracted cookies (within 10 minutes), try simplified validation
       if (cookieAge < 10 * 60 * 1000) {
         console.log(
-          "🚀 Cookies are relatively fresh, using simplified validation"
+          " Cookies are relatively fresh, using simplified validation"
         );
 
         // Check if key Airtable cookies are present
@@ -637,14 +637,14 @@ export class CookieScraperService {
           cookieHeader.includes("mbpg");
 
         if (hasSessionCookie && hasAuthCookies) {
-          console.log("✅ Key authentication cookies found, assuming valid");
+          console.log(" Key authentication cookies found, assuming valid");
           logger.info("Cookies validated by presence check", { userId });
           return true;
         }
       }
 
       // Test cookies by making request to actual workspace (more reliable than API)
-      console.log("🧪 Testing cookies against workspace page...");
+      console.log(" Testing cookies against workspace page...");
 
       try {
         const response = await axios.get(
@@ -664,7 +664,7 @@ export class CookieScraperService {
           }
         );
 
-        console.log("🔍 Workspace Response Status:", response.status);
+        console.log(" Workspace Response Status:", response.status);
 
         // Check if we got successful workspace access
         if (response.status === 200) {
@@ -678,7 +678,7 @@ export class CookieScraperService {
               !responseText.includes("login"))
           ) {
             console.log(
-              "✅ Workspace validation successful - authenticated access confirmed"
+              " Workspace validation successful - authenticated access confirmed"
             );
             logger.info("Cookies validated successfully against workspace", {
               userId,
@@ -688,7 +688,7 @@ export class CookieScraperService {
         }
 
         // If workspace test fails, cookies likely need refresh
-        console.log("❌ Workspace validation failed - cookies may be expired");
+        console.log(" Workspace validation failed - cookies may be expired");
         logger.warn("Workspace validation failed", {
           userId,
           status: response.status,

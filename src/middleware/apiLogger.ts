@@ -241,7 +241,7 @@ export function apiLogger(
       console.log(
         `\n${colors.bgYellow}${
           colors.black
-        } ⚠️  SLOW REQUEST - ${formatDuration(duration)} ${colors.reset}`
+        }   SLOW REQUEST - ${formatDuration(duration)} ${colors.reset}`
       );
     }
 

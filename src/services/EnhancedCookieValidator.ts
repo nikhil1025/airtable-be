@@ -22,7 +22,7 @@ export class EnhancedCookieValidator {
     message: string;
   }> {
     try {
-      console.log("🔍 VALIDATING ALL AUTHENTICATION DATA");
+      console.log(" VALIDATING ALL AUTHENTICATION DATA");
       console.log("-".repeat(40));
 
       // Get connection data
@@ -38,13 +38,13 @@ export class EnhancedCookieValidator {
         };
       }
 
-      console.log("✅ Connection found in database");
-      console.log(`📅 Cookies valid until: ${connection.cookiesValidUntil}`);
+      console.log(" Connection found in database");
+      console.log(` Cookies valid until: ${connection.cookiesValidUntil}`);
       console.log(
         `🗄️ Has localStorage: ${connection.localStorage ? "YES" : "NO"}`
       );
       console.log(
-        `💾 Has sessionData: ${(connection as any).sessionData ? "YES" : "NO"}`
+        ` Has sessionData: ${(connection as any).sessionData ? "YES" : "NO"}`
       );
 
       // Check expiration
@@ -52,7 +52,7 @@ export class EnhancedCookieValidator {
         connection.cookiesValidUntil &&
         new Date(connection.cookiesValidUntil) < new Date()
       ) {
-        console.log("⚠️ Cookies have expired");
+        console.log(" Cookies have expired");
         return {
           isValid: false,
           cookies: connection.cookies || "",
@@ -63,14 +63,14 @@ export class EnhancedCookieValidator {
       }
 
       // Test cookies with multiple endpoints
-      console.log("🧪 Testing cookie validity with multiple endpoints...");
+      console.log(" Testing cookie validity with multiple endpoints...");
 
       const testResults = await this.performMultipleAuthTests(
         connection.cookies || ""
       );
 
       if (testResults.allPassed) {
-        console.log("✅ All authentication tests passed");
+        console.log(" All authentication tests passed");
         return {
           isValid: true,
           cookies: connection.cookies || "",
@@ -79,7 +79,7 @@ export class EnhancedCookieValidator {
           message: "All authentication data is valid",
         };
       } else {
-        console.log("❌ Some authentication tests failed");
+        console.log(" Some authentication tests failed");
         return {
           isValid: false,
           cookies: connection.cookies || "",
@@ -150,10 +150,10 @@ export class EnhancedCookieValidator {
           : [test.expectedStatus];
 
         if (expectedStatuses.includes(response.status)) {
-          console.log(`   ✅ ${test.name}: ${response.status}`);
+          console.log(`    ${test.name}: ${response.status}`);
         } else {
           console.log(
-            `   ❌ ${test.name}: ${
+            `    ${test.name}: ${
               response.status
             } (expected ${expectedStatuses.join(" or ")})`
           );
@@ -161,7 +161,7 @@ export class EnhancedCookieValidator {
         }
       } catch (error) {
         console.log(
-          `   ❌ ${test.name}: ${
+          `    ${test.name}: ${
             (error as any).response?.status || "Network Error"
           }`
         );
@@ -186,7 +186,7 @@ export class EnhancedCookieValidator {
     validUntil: Date
   ): Promise<void> {
     try {
-      console.log("💾 STORING COMPLETE AUTHENTICATION DATA");
+      console.log(" STORING COMPLETE AUTHENTICATION DATA");
       console.log("-".repeat(40));
 
       await AirtableConnection.findOneAndUpdate(
@@ -203,15 +203,15 @@ export class EnhancedCookieValidator {
         { upsert: true, new: true }
       );
 
-      console.log("✅ All authentication data stored successfully");
-      console.log(`📅 Valid until: ${validUntil}`);
+      console.log(" All authentication data stored successfully");
+      console.log(` Valid until: ${validUntil}`);
       console.log(
         `🗄️ localStorage keys: ${
           localStorage ? Object.keys(localStorage).length : 0
         }`
       );
       console.log(
-        `💾 sessionData keys: ${
+        ` sessionData keys: ${
           sessionData ? Object.keys(sessionData).length : 0
         }`
       );

@@ -5,11 +5,11 @@ import { AirtableConnection, Ticket } from "../models";
 async function setupTestData() {
   try {
     console.log("\n" + "=".repeat(70));
-    console.log("🔧 SETTING UP TEST DATA");
+    console.log(" SETTING UP TEST DATA");
     console.log("=".repeat(70));
 
     await connectDatabase();
-    console.log("✅ Connected to MongoDB");
+    console.log(" Connected to MongoDB");
 
     const TEST_USER_ID = "user_1764525443009";
 
@@ -19,7 +19,7 @@ async function setupTestData() {
     let connection = await AirtableConnection.findOne({ userId: TEST_USER_ID });
 
     if (connection) {
-      console.log("⚠️  Connection already exists for this user");
+      console.log("  Connection already exists for this user");
       console.log(`   User ID: ${TEST_USER_ID}`);
       console.log(`   Has Cookies: ${connection.cookies ? "YES" : "NO"}`);
       console.log(
@@ -33,12 +33,12 @@ async function setupTestData() {
         refreshToken: null,
         cookiesValidUntil: null,
       });
-      console.log("✅ Created new AirtableConnection");
+      console.log(" Created new AirtableConnection");
       console.log(`   User ID: ${TEST_USER_ID}`);
     }
 
     // Step 2: Check for existing tickets
-    console.log("\n🎫 Step 2: Checking for tickets...");
+    console.log("\n Step 2: Checking for tickets...");
 
     const existingTickets = await Ticket.countDocuments({
       userId: TEST_USER_ID,
@@ -46,9 +46,9 @@ async function setupTestData() {
     console.log(`   Found ${existingTickets} tickets for this user`);
 
     if (existingTickets === 0) {
-      console.log("\n⚠️  NO TICKETS FOUND!");
+      console.log("\n  NO TICKETS FOUND!");
       console.log("\nYou have two options:");
-      console.log("\n📋 OPTION 1: Use Different Test User (Recommended)");
+      console.log("\n OPTION 1: Use Different Test User (Recommended)");
       console.log("   Check which users have data:");
 
       const usersWithTickets = await Ticket.distinct("userId");
@@ -66,12 +66,12 @@ async function setupTestData() {
         }
 
         console.log(
-          "\n   💡 To use a different user, update the TEST_USER_ID in:"
+          "\n    To use a different user, update the TEST_USER_ID in:"
         );
         console.log("      src/scripts/test-revision-scraping.ts (line 565)");
       }
 
-      console.log("\n📋 OPTION 2: Sync Data for This User");
+      console.log("\n OPTION 2: Sync Data for This User");
       console.log("   First, authenticate and get OAuth tokens:");
       console.log(
         `   1. Visit: http://localhost:3000/api/airtable/oauth/authorize?userId=${TEST_USER_ID}`
@@ -86,7 +86,7 @@ async function setupTestData() {
         `     -d '{"accessToken":"your-token","refreshToken":"your-refresh-token"}'`
       );
     } else {
-      console.log("\n✅ Tickets found! Showing sample:");
+      console.log("\n Tickets found! Showing sample:");
       const sampleTicket = await Ticket.findOne({ userId: TEST_USER_ID });
       if (sampleTicket) {
         console.log(`   Record ID: ${sampleTicket.airtableRecordId}`);
@@ -97,11 +97,11 @@ async function setupTestData() {
     }
 
     // Step 3: Check cookie status
-    console.log("\n🍪 Step 3: Cookie Status...");
+    console.log("\n Step 3: Cookie Status...");
 
     if (!connection.cookies) {
-      console.log("❌ No cookies found!");
-      console.log("\n💡 To get cookies, you have two options:");
+      console.log(" No cookies found!");
+      console.log("\n To get cookies, you have two options:");
       console.log("\n   OPTION A: Auto-retrieve (requires credentials):");
       console.log(
         `   curl -X POST 'http://localhost:3000/api/airtable/cookies/auto-retrieve' \\`
@@ -125,11 +125,11 @@ async function setupTestData() {
         new Date(connection.cookiesValidUntil) < new Date();
 
       if (isExpired) {
-        console.log("⚠️  Cookies exist but have EXPIRED!");
+        console.log("  Cookies exist but have EXPIRED!");
         console.log(`   Valid until: ${connection.cookiesValidUntil}`);
         console.log("   Need to refresh cookies (see options above)");
       } else {
-        console.log("✅ Valid cookies found!");
+        console.log(" Valid cookies found!");
         console.log(
           `   Valid until: ${connection.cookiesValidUntil || "Unknown"}`
         );
@@ -138,7 +138,7 @@ async function setupTestData() {
 
     // Final summary
     console.log("\n" + "=".repeat(70));
-    console.log("📊 SUMMARY");
+    console.log(" SUMMARY");
     console.log("=".repeat(70));
     console.log(`User ID: ${TEST_USER_ID}`);
     console.log(`Connection: ${connection ? "EXISTS" : "NOT FOUND"}`);
@@ -148,10 +148,10 @@ async function setupTestData() {
     const canRunTest = connection?.cookies && existingTickets > 0;
 
     if (canRunTest) {
-      console.log("\n✅ READY TO RUN TEST!");
+      console.log("\n READY TO RUN TEST!");
       console.log("   Execute: npm run test:revision-scraping");
     } else {
-      console.log("\n⚠️  NOT READY - Missing:");
+      console.log("\n  NOT READY - Missing:");
       if (!connection?.cookies) console.log("   • Cookies");
       if (existingTickets === 0) console.log("   • Tickets data");
     }

@@ -53,7 +53,7 @@ app.use(
   (req: Request, res: Response, next: NextFunction) => {
     console.log(res);
     console.log("\n" + "=".repeat(70));
-    console.log(`🌐 INCOMING API REQUEST`);
+    console.log(` INCOMING API REQUEST`);
     console.log("=".repeat(70));
     console.log(`📍 Method: ${req.method}`);
     console.log(`📍 Path: ${req.path}`);
@@ -61,7 +61,7 @@ app.use(
       `📍 Full URL: ${req.protocol}://${req.get("host")}${req.originalUrl}`
     );
     console.log(`📍 Params:`, req.params);
-    console.log(`⏰ Time: ${new Date().toISOString()}`);
+    console.log(` Time: ${new Date().toISOString()}`);
     console.log("=".repeat(70) + "\n");
     next();
   }
