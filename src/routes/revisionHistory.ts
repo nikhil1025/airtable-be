@@ -4,6 +4,7 @@ import {
   getAllRevisionsFlat,
   getRecordRevisions,
   getRevisionHistoriesForUser,
+  getRevisionsByFilter,
   scrapeSingleRecord,
 } from "../controllers/revisionHistoryFetchController";
 
@@ -38,6 +39,14 @@ router.get("/all/:userId", getAllRevisionsFlat);
  * @query   userId, limit, sortBy, sortOrder
  */
 router.get("/record/:recordId", getRecordRevisions);
+
+/**
+ * @route   GET /api/revision-history/filter
+ * @desc    Get revision histories filtered by baseId and/or tableId
+ * @access  Public (should be protected in production)
+ * @query   baseId, tableId, userId, limit, skip, sortBy, sortOrder
+ */
+router.get("/filter", getRevisionsByFilter);
 
 /**
  * @route   POST /api/revision-history/scrape/record

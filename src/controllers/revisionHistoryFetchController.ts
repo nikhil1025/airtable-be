@@ -326,6 +326,103 @@ export const getRecordRevisions = async (
 };
 
 /**
+ * Get revision histories by baseId and/or tableId
+ *
+ * GET /api/revision-history/filter
+ *
+ * @param req - Request with baseId and/or tableId in query params
+ * @param res - Response with array of revision histories
+ */
+export const getRevisionsByFilter = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const {
+      baseId,
+      tableId,
+      userId,
+      limit,
+      skip,
+      sortBy = "createdDate",
+      sortOrder = "desc",
+    } = req.query;
+
+    // At least one filter parameter is required
+    if (!baseId && !tableId) {
+      res.status(400).json({
+        success: false,
+        message: "At least one of baseId or tableId is required",
+      });
+      return;
+    }
+
+    // Build query filter
+    const queryFilter: any = {};
+    if (baseId) {
+      queryFilter.baseId = baseId;
+    }
+    if (tableId) {
+      queryFilter.tableId = tableId;
+    }
+    if (userId) {
+      queryFilter.userId = userId;
+    }
+
+    // Build query
+    let query = RevisionHistory.find(queryFilter);
+
+    // Apply sorting
+    const sortOptions: any = {};
+    sortOptions[sortBy as string] = sortOrder === "asc" ? 1 : -1;
+    query = query.sort(sortOptions);
+
+    // Apply pagination if provided
+    if (skip) {
+      query = query.skip(parseInt(skip as string));
+    }
+    if (limit) {
+      query = query.limit(parseInt(limit as string));
+    }
+
+    const revisions = await query.lean();
+
+    // Get unique ticket count
+    const uniqueTickets = new Set(revisions.map((rev) => rev.issueId));
+
+    res.status(200).json({
+      success: true,
+      data: {
+        filters: {
+          baseId: baseId || null,
+          tableId: tableId || null,
+          userId: userId || null,
+        },
+        totalRevisions: revisions.length,
+        totalTickets: uniqueTickets.size,
+        revisions: revisions.map((rev) => ({
+          uuid: rev.uuid,
+          issueId: rev.issueId,
+          columnType: rev.columnType,
+          oldValue: rev.oldValue,
+          newValue: rev.newValue,
+          createdDate: rev.createdDate,
+          authoredBy: rev.authoredBy,
+        })),
+      },
+    });
+  } catch (error: any) {
+    console.error("Error fetching filtered revisions:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch revision histories from database",
+      error: error.message,
+    });
+  }
+};
+
+/**
  * Scrape revision history for a single record
  *
  * POST /api/revision-history/scrape/record
