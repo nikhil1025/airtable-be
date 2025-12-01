@@ -13,13 +13,6 @@ import {
   ValidationError,
 } from "../utils/errors";
 
-/**
- * POST /api/airtable/sync/bases
- * Fetches all bases (projects) - either from cache (MongoDB) or fresh from Airtable
- * When forceSync=true: Fetches ALL pages from Airtable API and stores in MongoDB
- * When forceSync=false: Fetches from MongoDB cache
- * Note: offset parameter is ignored - all pagination is done in MongoDB
- */
 export async function syncBases(
   req: Request<unknown, unknown, SyncBasesRequest>,
   res: Response
@@ -49,13 +42,6 @@ export async function syncBases(
   }
 }
 
-/**
- * POST /api/airtable/sync/tables
- * Fetches all tables for a base - either from cache (MongoDB) or fresh from Airtable
- * When forceSync=true: Fetches ALL pages from Airtable API and stores in MongoDB
- * When forceSync=false: Fetches from MongoDB cache
- * Note: offset parameter is ignored - all pagination is done in MongoDB
- */
 export async function syncTables(
   req: Request<unknown, unknown, SyncTablesRequest>,
   res: Response
@@ -89,13 +75,6 @@ export async function syncTables(
   }
 }
 
-/**
- * POST /api/airtable/sync/tickets
- * Fetches all tickets (records) from a table - either from cache (MongoDB) or fresh from Airtable
- * When forceSync=true: Fetches ALL pages from Airtable API and stores in MongoDB
- * When forceSync=false: Fetches from MongoDB cache
- * Note: offset parameter is ignored - all pagination is done in MongoDB
- */
 export async function syncTickets(
   req: Request<unknown, unknown, SyncTicketsRequest>,
   res: Response
@@ -139,43 +118,6 @@ export async function syncTickets(
   }
 }
 
-/**
- * POST /api/airtable/sync/users
- * Fetches all users - either from cache (MongoDB) or fresh from Airtable
- * When forceSync=true: Fetches from Airtable API and stores in MongoDB
- * When forceSync=false: Fetches from MongoDB cache
- */
-// export async function syncUsers(
-//   req: Request<unknown, unknown, SyncUsersRequest>,
-//   res: Response
-// ): Promise<Response> {
-//   try {
-//     const { userId, forceSync } = req.body;
-
-//     if (!userId) {
-//       throw new ValidationError("userId is required");
-//     }
-
-//     let result;
-
-//     if (forceSync) {
-//       logger.info("Syncing users from Airtable API (force sync)", { userId });
-//       result = await AirtableDataService.fetchUsers(userId);
-//     } else {
-//       logger.info("Fetching users from MongoDB (cache mode)", { userId });
-//       result = await AirtableDataService.getUsersFromDB(userId);
-//     }
-
-//     return sendSuccessResponse(res, result);
-//   } catch (error) {
-//     return sendErrorResponse(res, error);
-//   }
-// }
-
-/**
- * POST /api/airtable/sync/all
- * Syncs all data (bases, tables, tickets, users)
- */
 export async function syncAll(
   req: Request<unknown, unknown, SyncAllRequest>,
   res: Response

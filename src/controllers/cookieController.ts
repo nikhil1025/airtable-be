@@ -157,9 +157,54 @@ export async function refreshCookies(
   }
 }
 
+/**
+ * POST /api/airtable/cookies/set-token
+ * Manually set access token extracted from browser
+ */
+export async function setAccessToken(
+  req: Request,
+  res: Response
+): Promise<Response> {
+  try {
+    const { userId, accessToken } = req.body;
+
+    if (!userId || !accessToken) {
+      throw new ValidationError("userId and accessToken are required");
+    }
+
+    // Import models
+    const AirtableConnection = (await import("../models/AirtableConnection"))
+      .default;
+    const { encrypt } = await import("../utils/encryption");
+
+    // Store the scraped access token
+    await AirtableConnection.findOneAndUpdate(
+      { userId },
+      {
+        userId,
+        scrapedAccessToken: encrypt(accessToken),
+        cookiesValidUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+        updatedAt: new Date(),
+      },
+      { upsert: true, new: true }
+    );
+
+    const response = {
+      success: true,
+      message: "Access token stored successfully",
+      validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    };
+
+    return sendSuccessResponse(res, response);
+  } catch (error) {
+    return sendErrorResponse(res, error);
+  }
+}
+
 export default {
   autoRetrieveCookies,
   validateCookies,
   refreshCookies,
   getCookiesForTesting,
+  setAccessToken,
 };

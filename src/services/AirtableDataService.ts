@@ -1,15 +1,24 @@
 import axios, { AxiosInstance } from "axios";
 import config from "../config";
-import { AirtableConnection, Project, Table, Ticket } from "../models";
+import {
+  AirtableConnection,
+  Project,
+  Table,
+  Ticket,
+  WorkspaceUser,
+} from "../models";
 import {
   AirtableBase,
   AirtablePaginatedResponse,
   AirtableRecord,
   AirtableTable,
+  AirtableWorkspaceUser,
   BasesResponse,
   SyncAllResponse,
   TablesResponse,
   TicketsResponse,
+  WorkspaceSettingsResponse,
+  WorkspaceUsersResponse,
 } from "../types";
 import { decrypt } from "../utils/encryption";
 import {
@@ -439,6 +448,173 @@ export class AirtableDataService {
   }
 
   /**
+   * Fetches ALL workspace users from Airtable API
+   * Uses cookie-based authentication to directly fetch from /workspace/workspaceSettings endpoint
+   * This bypasses OAuth and works with browser-extracted cookies/tokens.
+   * 
+   * This method is called separately from sync and requires valid cookies/access token.
+   */
+  async fetchAllWorkspaceUsers(
+    userId: string
+  ): Promise<WorkspaceUsersResponse> {
+    try {
+      logger.info(
+        "[USERS] Starting fetchAllWorkspaceUsers using cookie-based authentication",
+        { userId }
+      );
+
+      const allUsers: AirtableWorkspaceUser[] = [];
+
+      // Get connection with scraped access token or cookies
+      const connection = await AirtableConnection.findOne({ userId });
+      if (!connection) {
+        throw new AuthenticationError(
+          "No connection found. Please authenticate first."
+        );
+      }
+
+      // Get access token (either from scraped or OAuth)
+      let accessToken: string | null = null;
+
+      if (connection.scrapedAccessToken) {
+        accessToken = decrypt(connection.scrapedAccessToken);
+        logger.info("[USERS] Using scraped access token", { userId });
+      } else if (connection.accessToken) {
+        accessToken = decrypt(connection.accessToken);
+        logger.info("[USERS] Using OAuth access token", { userId });
+      } else {
+        throw new AuthenticationError(
+          "No access token found. Please set a valid token."
+        );
+      }
+
+      // Create axios instance with the token
+      const axiosInstance = axios.create({
+        baseURL: "https://airtable.com",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+          Cookie: connection.cookies ? decrypt(connection.cookies) : undefined,
+        },
+        timeout: 30000,
+      });
+
+      // First, get workspace ID from user metadata
+      logger.info("[USERS] Fetching user metadata to get workspace ID", {
+        userId,
+      });
+      const metaRes = await axiosInstance.get("/v0.3/meta/whoami");
+      const workspaceId =
+        metaRes.data.scopedToWorkspaceId || metaRes.data.workspaceId;
+
+      if (!workspaceId) {
+        logger.error(
+          "[USERS] Could not determine workspace ID from user metadata",
+          { userId }
+        );
+        return {
+          workspaceUsers: [],
+        };
+      }      logger.info(
+        `[USERS] Fetching workspace users for workspace ${workspaceId}`,
+        {
+          userId,
+          workspaceId,
+        }
+      );
+
+      // Use workspaceSettings endpoint which is available on all plans
+      const response = await this.rateLimiter.execute(() =>
+        retryWithBackoff(async () => {
+          const res = await axiosInstance.get<WorkspaceSettingsResponse>(
+            `/v0.3/${workspaceId}/workspace/workspaceSettings`
+          );
+          return res.data;
+        })
+      );
+
+      const billableUserBreakdown =
+        response.workspaceData?.billableUserBreakdown;
+
+      if (!billableUserBreakdown) {
+        logger.warn("[USERS] No billableUserBreakdown found in response", {
+          userId,
+        });
+        return {
+          workspaceUsers: [],
+        };
+      }
+
+      const userProfiles =
+        billableUserBreakdown.billableUserProfileInfoById || {};
+      const collaborators = billableUserBreakdown.workspaceCollaborators || [];
+
+      logger.info(
+        `[USERS] Found ${Object.keys(userProfiles).length} user profiles and ${
+          collaborators.length
+        } collaborators`,
+        { userId }
+      );
+
+      // Combine profile and collaborator data
+      for (const collaborator of collaborators) {
+        const profile = userProfiles[collaborator.userId];
+        if (profile) {
+          const user: AirtableWorkspaceUser = {
+            id: profile.id,
+            email: profile.email,
+            name: profile.name,
+            state: "active", // Collaborators are active
+            createdTime: collaborator.createdTime,
+            lastActivityTime: collaborator.createdTime, // Use createdTime as fallback
+            invitedToAirtableByUserId: collaborator.grantedByUserId,
+          };
+
+          allUsers.push(user);
+
+          // Store in MongoDB
+          await WorkspaceUser.findOneAndUpdate(
+            { airtableUserId: user.id },
+            {
+              airtableUserId: user.id,
+              email: user.email,
+              name: user.name,
+              state: user.state,
+              createdTime: user.createdTime,
+              lastActivityTime: user.lastActivityTime,
+              invitedToAirtableByUserId: user.invitedToAirtableByUserId,
+              userId,
+              updatedAt: new Date(),
+            },
+            { upsert: true, new: true }
+          );
+        }
+      }
+
+      logger.info(
+        "[USERS] Successfully fetched workspace users from workspaceSettings endpoint",
+        {
+          userId,
+          totalUsers: allUsers.length,
+        }
+      );
+
+      return {
+        workspaceUsers: allUsers,
+      };
+    } catch (error) {
+      logger.error("[USERS] Failed to fetch all workspace users", error, {
+        userId,
+        errorType:
+          error instanceof Error ? error.constructor.name : typeof error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorCode: (error as any)?.code,
+      });
+      throw handleAirtableError(error);
+    }
+  }
+
+  /**
    * Get bases from MongoDB (cached data)
    */
   async getBasesFromDB(userId: string): Promise<BasesResponse> {
@@ -559,6 +735,47 @@ export class AirtableDataService {
   }
 
   /**
+   * Get workspace users from MongoDB (cached data)
+   */
+  async getWorkspaceUsersFromDB(
+    userId: string
+  ): Promise<WorkspaceUsersResponse> {
+    try {
+      logger.info("[USERS] Fetching workspace users from MongoDB", { userId });
+
+      const users = await WorkspaceUser.find({ userId }).sort({
+        updatedAt: -1,
+      });
+
+      const workspaceUsers: AirtableWorkspaceUser[] = users.map((user) => ({
+        id: user.airtableUserId,
+        email: user.email,
+        name: user.name,
+        state: user.state,
+        createdTime: user.createdTime,
+        lastActivityTime: user.lastActivityTime,
+        invitedToAirtableByUserId: user.invitedToAirtableByUserId,
+      }));
+
+      logger.info("[USERS] Fetched workspace users from MongoDB", {
+        userId,
+        count: workspaceUsers.length,
+      });
+
+      return {
+        workspaceUsers,
+      };
+    } catch (error) {
+      logger.error(
+        "[USERS] Failed to fetch workspace users from MongoDB",
+        error,
+        { userId }
+      );
+      throw handleAirtableError(error);
+    }
+  }
+
+  /**
    * Syncs all data: bases, tables, and tickets (with parallel batch processing)
    * Fetches ALL pages from Airtable and stores everything in MongoDB
    */
@@ -597,22 +814,22 @@ export class AirtableDataService {
       let totalTickets = 0;
 
       // Step 1: Sync ALL bases (fetches all pages internally)
-      logger.info("Step 1: Syncing all bases");
+      logger.info("[SYNC] Step 1: Syncing all bases");
       const basesResponse = await this.fetchAllBases(userId);
       totalBases = basesResponse.bases.length;
-      logger.info(`Synced ${totalBases} bases`);
+      logger.info(`[SYNC] Synced ${totalBases} bases`);
 
-      // Step 2: Get all bases from MongoDB for parallel processing
+      // Step 2: For each base, sync all its tables
       const bases = await Project.find({ userId });
       logger.info(
-        `Processing ${bases.length} bases with ${maxConcurrency} workers`
+        `[SYNC] Processing ${bases.length} bases with ${maxConcurrency} workers`
       );
 
       // Calculate optimal concurrency levels based on data volume
       const baseConcurrency = Math.min(maxConcurrency, bases.length);
       const tableConcurrency = Math.min(maxConcurrency * 2, 16); // More aggressive for tables
 
-      // Step 3: Process each base in parallel with dynamic concurrency
+      // Step 4: Process each base in parallel with dynamic concurrency
       const baseResults = await this.batchProcessor.processBatch(
         bases,
         async (base) => {
@@ -636,7 +853,7 @@ export class AirtableDataService {
             baseId: base.airtableBaseId,
           });
 
-          // Step 4: Process each table in parallel with higher concurrency
+          // Step 5: Process each table in parallel with higher concurrency
           const tableResults = await this.batchProcessor.processBatch(
             tables,
             async (table) => {
@@ -709,7 +926,7 @@ export class AirtableDataService {
           bases: totalBases,
           tables: totalTables,
           tickets: totalTickets,
-          users: 0,
+          users: 0, // Users are synced separately via /api/users/sync
         },
       };
     } catch (error) {

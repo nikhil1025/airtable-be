@@ -32,11 +32,55 @@ export interface AirtableUser {
   name?: string;
 }
 
+export interface AirtableWorkspaceUser {
+  id: string;
+  email: string;
+  name?: string;
+  state?: string;
+  createdTime?: string;
+  lastActivityTime?: string;
+  invitedToAirtableByUserId?: string;
+}
+
+export interface BillableUserProfile {
+  id: string;
+  name: string;
+  profilePicUrl: string;
+  email: string;
+  isServiceAccount: boolean;
+}
+
+export interface WorkspaceCollaborator {
+  userId: string;
+  permissionLevel: string;
+  grantedByUserId: string;
+  createdTime: string;
+}
+
+export interface BillableUserBreakdown {
+  numWorkspaceLevelBillableCollaborators: number;
+  numTotalBillableCollaborators: number;
+  numTotalEditorOrAbovePermissionCollaborators: number;
+  billableUserProfileInfoById: Record<string, BillableUserProfile>;
+  workspaceCollaborators: WorkspaceCollaborator[];
+  editorOrAbovePermissionCollaboratorsUserIds: string[];
+  allCollaboratorUserIds: string[];
+}
+
+export interface WorkspaceSettingsResponse {
+  workspaceData: {
+    workspaceId: string;
+    workspaceName: string;
+    billableUserBreakdown: BillableUserBreakdown;
+  };
+}
+
 export interface AirtablePaginatedResponse<T> {
   records?: T[];
   bases?: AirtableBase[];
   tables?: AirtableTable[];
   users?: AirtableUser[];
+  workspaceUsers?: AirtableWorkspaceUser[];
   offset?: string;
 }
 
@@ -177,6 +221,10 @@ export interface UsersResponse {
   users: AirtableUser[];
   offset?: string;
   hasMore: boolean;
+}
+
+export interface WorkspaceUsersResponse {
+  workspaceUsers: AirtableWorkspaceUser[];
 }
 
 export interface SyncAllResponse {

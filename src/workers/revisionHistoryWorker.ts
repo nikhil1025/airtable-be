@@ -153,8 +153,6 @@ async function scrapeRevisionHistoryForTicket(
     const recordId = ticketData.airtableRecordId;
     console.log(`[WORKER-${workerId}]  Scraping record: ${recordId}`);
 
-    // Launch browser
-    console.log(`[WORKER-${workerId}]  Launching browser...`);
     browser = await puppeteer.launch({
       headless: true,
       executablePath: "/usr/bin/google-chrome",
@@ -231,9 +229,6 @@ async function scrapeRevisionHistoryForTicket(
       })
       .filter((c) => c !== null);
 
-    console.log(
-      `[WORKER-${workerId}]  Setting ${cookieObjects.length} cookies...`
-    );
     for (const cookie of cookieObjects) {
       try {
         await page.setCookie(cookie as any);

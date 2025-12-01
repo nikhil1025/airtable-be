@@ -57,7 +57,6 @@ class RevisionHistoryWorker {
    */
   async launchBrowser(): Promise<boolean> {
     try {
-      console.log(`[Worker ${this.workerId}] Launching browser...`);
       this.browser = await puppeteer.launch({
         headless: true, // Run in background for bulk processing
         executablePath: "/usr/bin/google-chrome",

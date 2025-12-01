@@ -9,6 +9,7 @@ import revisionHistoryFetchRoutes from "./revisionHistory";
 // import revisionHistoryRoutes from "./revisionHistory";
 // import revisionHistoryV2Routes from "./revisionHistoryV2";
 import syncRoutes from "./sync";
+import usersRoutes from "./users";
 
 const router = Router();
 
@@ -23,5 +24,6 @@ router.use("/revision-history", revisionHistoryFetchRoutes); // Fetch and store 
 // router.use("/revision-history", revisionHistoryRoutes);
 // router.use("/revision-history-v2", revisionHistoryV2Routes); // NEW: Internal API implementation
 router.use("/revision-history-bulk", bulkRevisionRoutes); // BULK AUTOMATION
+router.use("/users", usersRoutes); // Workspace users
 
 export default router;

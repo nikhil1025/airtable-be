@@ -426,7 +426,6 @@ async function handleScrape(data: any): Promise<any> {
     });
 
     page = await browser.newPage();
-    console.log("[PUPPETEER_WORKER] Setting cookies for scraping...");
 
     // Set cookies
     await page.setCookie(...cookies);

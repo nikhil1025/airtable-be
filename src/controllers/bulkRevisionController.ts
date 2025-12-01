@@ -5,18 +5,6 @@ import { EnhancedCookieValidator } from "../services/EnhancedCookieValidator";
 import { RevisionChange } from "../types";
 import { AppError, logger } from "../utils/errors";
 
-/**
- * BULK REVISION HISTORY AUTOMATION
- *
- * Steps:
- * 1. Get all tickets from MongoDB (airtableRecordId field)
- * 2. Validate cookies properly
- * 3. Create URL list with exact format user provided
- * 4. Iterate through each record hitting the endpoint
- * 5. Extract revision history in specified JSON format
- * 6. Store in revision history collection
- * 7. Print everything to terminal with detailed logging
- */
 export async function bulkRevisionHistoryAutomation(
   req: Request,
   res: Response
@@ -33,7 +21,6 @@ export async function bulkRevisionHistoryAutomation(
 
     console.log(`[INFO] User ID: ${userId}`);
 
-    // STEP 1: Get all tickets from MongoDB
     console.log("\n STEP 1: Fetching all tickets from MongoDB");
     console.log("-".repeat(40));
 
@@ -57,7 +44,6 @@ export async function bulkRevisionHistoryAutomation(
       console.log(`   Table ID: ${ticket.tableId}`);
     });
 
-    // STEP 2: Validate cookies properly with all auth data
     console.log(
       "\n STEP 2: Validating ALL authentication data (cookies + localStorage + session)"
     );
@@ -79,7 +65,6 @@ export async function bulkRevisionHistoryAutomation(
 
     const { cookies, localStorage, sessionData } = authValidation;
 
-    // STEP 3: Create URL list with exact format
     console.log("\n STEP 3: Creating URL list with exact format");
     console.log("-".repeat(40));
 
@@ -135,7 +120,6 @@ export async function bulkRevisionHistoryAutomation(
       console.log(`   URL: ${item.url.substring(0, 100)}...`);
     });
 
-    // STEP 4: Iterate through each record and hit endpoint
     console.log("\n⚡ STEP 4: Processing revision history for all records");
     console.log("-".repeat(40));
 
@@ -167,7 +151,6 @@ export async function bulkRevisionHistoryAutomation(
 
         console.log(` API Response received (Status: ${response.status})`);
 
-        // STEP 5: Extract revision history in specified JSON format
         const revisions = parseRevisionHistoryResponse(
           response.data,
           item.recordId
@@ -216,7 +199,6 @@ export async function bulkRevisionHistoryAutomation(
       }
     }
 
-    // STEP 6: Store in revision history collection
     console.log("\n STEP 6: Storing revision history in database");
     console.log("-".repeat(40));
 
@@ -253,7 +235,6 @@ export async function bulkRevisionHistoryAutomation(
       console.log(` Saved ${savedCount} revision history records to database`);
     }
 
-    // STEP 7: Print final results in requested format
     console.log("\n AUTOMATION COMPLETE - FINAL RESULTS");
     console.log("=".repeat(60));
 
