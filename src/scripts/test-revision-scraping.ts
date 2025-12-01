@@ -1,30 +1,17 @@
+import * as cheerio from "cheerio";
 import puppeteer, { Browser, Page } from "puppeteer";
 import { connectDatabase } from "../config/database";
 import { AirtableConnection, Ticket } from "../models";
 import { decrypt, isEncrypted } from "../utils/encryption";
 
-/**
- * TEST SCRIPT FOR AIRTABLE REVISION HISTORY SCRAPING
- *
- * This script:
- * 1. Fetches cookies from MongoDB AirtableConnection collection
- * 2. Validates cookies before making requests
- * 3. Launches a real Chrome browser instance
- * 4. Gets ticket data (rowId, airtableRecordId) from Tickets collection
- * 5. Scrapes revision history from Airtable website using the API endpoint
- *
- * Test User ID: user_1764525443009
- */
-
 interface RevisionHistoryItem {
   uuid: string;
-  recordId: string;
+  issueId: string; // Using issueId to match your requirement (same as recordId)
   columnType: string;
   oldValue: any;
   newValue: any;
-  createdDate: string;
-  userEmail?: string;
-  userName?: string;
+  createdDate: Date;
+  authoredBy: string; // User ID who made the change
 }
 
 interface TicketData {
@@ -606,6 +593,106 @@ class RevisionHistoryScraper {
   }
 
   /**
+   * Parse HTML from diffRowHtml to extract field changes
+   */
+  private parseHTMLDiff(html: string): Array<{
+    columnType: string;
+    columnId: string;
+    oldValue: string | null;
+    newValue: string | null;
+  }> {
+    const changes: Array<{
+      columnType: string;
+      columnId: string;
+      oldValue: string | null;
+      newValue: string | null;
+    }> = [];
+
+    try {
+      const $ = cheerio.load(html);
+
+      // Find all historicalCellContainer elements
+      $(".historicalCellContainer").each((_index, container) => {
+        const $container = $(container);
+
+        // Extract column name and ID
+        const columnHeader = $container.find(".micro.strong.caps");
+        const columnType = columnHeader.text().trim();
+        const columnId =
+          columnHeader.attr("columnid") || columnHeader.attr("columnId") || "";
+
+        if (!columnType) return;
+
+        // Determine if it's a new value (nullToValue) or a change (diff)
+        const isNullToValue = $container.find(".nullToValue").length > 0;
+        const isDiff = $container.find(".diff").length > 0;
+
+        let oldValue: string | null = null;
+        let newValue: string | null = null;
+
+        if (isNullToValue) {
+          // New value added (previously null)
+          oldValue = null;
+
+          // Extract new value based on type
+          const successElement = $container.find(".colors-background-success");
+          newValue = successElement.text().trim();
+
+          // For text diffs, extract from textDiff
+          const textDiff = $container.find(".textDiff");
+          if (textDiff.length > 0) {
+            const addedText = textDiff
+              .find(".colors-background-success")
+              .text()
+              .trim();
+            if (addedText) newValue = addedText;
+          }
+        } else if (isDiff) {
+          // Value changed
+          const negativeElement = $container.find(
+            ".colors-background-negative, .strikethrough.colors-foreground-accent-negative"
+          );
+          const successElement = $container.find(".colors-background-success");
+
+          // Extract old value (red/strikethrough)
+          oldValue = negativeElement.first().text().trim();
+
+          // Extract new value (green)
+          newValue = successElement.last().text().trim();
+
+          // For text diffs with spans
+          const textDiff = $container.find(".textDiff");
+          if (textDiff.length > 0) {
+            const removedText = textDiff
+              .find(".colors-background-negative")
+              .text()
+              .trim();
+            const addedText = textDiff
+              .find(".colors-background-success")
+              .text()
+              .trim();
+            if (removedText) oldValue = removedText;
+            if (addedText) newValue = addedText;
+          }
+        }
+
+        if (oldValue !== null || newValue !== null) {
+          changes.push({
+            columnType,
+            columnId,
+            oldValue,
+            newValue,
+          });
+        }
+      });
+    } catch (error) {
+      console.error("❌ Error parsing HTML diff:", error);
+    }
+
+    return changes;
+  }
+
+  /**
    * Parse the API response into our revision history format
    */
   private parseRevisionHistory(
@@ -620,66 +707,57 @@ class RevisionHistoryScraper {
         return revisions;
       }
 
-      const activities = apiResponse.data.rowActivitiesAndComments || [];
+      // Get activity info from rowActivityInfoById (contains HTML)
+      const activityInfoById = apiResponse.data.rowActivityInfoById || {};
       const userMap = apiResponse.data.rowActivityOrCommentUserObjById || {};
 
+      const activityIds = Object.keys(activityInfoById);
+
       console.log(`\n🔍 Parsing response data...`);
-      console.log(`   Activities found: ${activities.length}`);
+      console.log(`   Activities found: ${activityIds.length}`);
       console.log(`   Users found: ${Object.keys(userMap).length}`);
 
-      for (const activity of activities) {
-        if (activity.type === "row_activity") {
-          const userId = activity.createdByUserId;
-          const user = userMap[userId];
+      // Parse each activity
+      for (const activityId of activityIds) {
+        const activity = activityInfoById[activityId];
+        const userId = activity.originatingUserId;
+        const user = userMap[userId];
 
-          // Handle field changes
-          if (activity.fieldChanges) {
-            const fieldIds = Object.keys(activity.fieldChanges);
-            console.log(`\n   📝 Activity ID: ${activity.id}`);
-            console.log(`      Created: ${activity.createdTime}`);
-            console.log(
-              `      User: ${user?.name || user?.email || "Unknown"}`
-            );
-            console.log(`      Fields changed: ${fieldIds.length}`);
+        console.log(`\n   📝 Activity ID: ${activityId}`);
+        console.log(`      Created: ${activity.createdTime}`);
+        console.log(
+          `      User: ${user?.name || user?.email || "Unknown"} (${userId})`
+        );
+        console.log(`      Group Type: ${activity.groupType}`);
 
-            for (const fieldId in activity.fieldChanges) {
-              const change = activity.fieldChanges[fieldId];
+        // Parse the HTML to extract field changes
+        if (activity.diffRowHtml) {
+          const changes = this.parseHTMLDiff(activity.diffRowHtml);
+          console.log(`      Fields changed: ${changes.length}`);
 
-              const revision: RevisionHistoryItem = {
-                uuid: activity.id || `act_${Date.now()}_${Math.random()}`,
-                recordId: activity.rowId || recordId,
-                columnType: change.fieldName || fieldId,
-                oldValue: change.previousCellValuesByFieldId?.[fieldId] || null,
-                newValue: change.currentCellValuesByFieldId?.[fieldId] || null,
-                createdDate: new Date(activity.createdTime).toISOString(),
-                userEmail: user?.email || "Unknown",
-                userName: user?.name || user?.email || "Unknown",
-              };
+          for (const change of changes) {
+            const revision: RevisionHistoryItem = {
+              uuid: activityId,
+              issueId: recordId,
+              columnType: change.columnType,
+              oldValue: change.oldValue,
+              newValue: change.newValue,
+              createdDate: new Date(activity.createdTime),
+              authoredBy: userId,
+            };
 
-              revisions.push(revision);
+            revisions.push(revision);
 
-              // Print each change detail
-              console.log(`      • ${change.fieldName || fieldId}:`);
-              console.log(`        Old: ${JSON.stringify(revision.oldValue)}`);
-              console.log(`        New: ${JSON.stringify(revision.newValue)}`);
-            }
+            // Print each change detail
+            console.log(`      • ${change.columnType}:`);
+            console.log(`        Old: ${change.oldValue || "null"}`);
+            console.log(`        New: ${change.newValue || "null"}`);
           }
-        } else if (activity.type === "row_comment") {
-          // Also capture comments as revision items
-          const userId = activity.createdByUserId;
-          const user = userMap[userId];
-
-          console.log(`\n   💬 Comment ID: ${activity.id}`);
-          console.log(`      Created: ${activity.createdTime}`);
-          console.log(`      User: ${user?.name || user?.email || "Unknown"}`);
-          console.log(
-            `      Comment: ${activity.commentText?.substring(0, 100) || "N/A"}`
-          );
         }
       }
 
       console.log(
-        `\n✅ Parsed ${revisions.length} revision items from ${activities.length} activities`
+        `\n✅ Parsed ${revisions.length} revision items from ${activityIds.length} activities`
       );
     } catch (error) {
       console.error("❌ Error parsing revision history:", error);
@@ -773,22 +851,16 @@ class RevisionHistoryScraper {
         revisions.forEach((revision, index) => {
           console.log(`\n[${index + 1}/${revisions.length}] Revision:`);
           console.log(`   UUID: ${revision.uuid}`);
-          console.log(`   Record ID: ${revision.recordId}`);
-          console.log(`   Field: ${revision.columnType}`);
-          console.log(
-            `   Changed by: ${revision.userName} (${revision.userEmail})`
-          );
-          console.log(`   Date: ${revision.createdDate}`);
-          console.log(
-            `   Old Value: ${JSON.stringify(revision.oldValue, null, 2)}`
-          );
-          console.log(
-            `   New Value: ${JSON.stringify(revision.newValue, null, 2)}`
-          );
+          console.log(`   Issue ID: ${revision.issueId}`);
+          console.log(`   Column Type: ${revision.columnType}`);
+          console.log(`   Authored By: ${revision.authoredBy}`);
+          console.log(`   Created Date: ${revision.createdDate.toISOString()}`);
+          console.log(`   Old Value: ${revision.oldValue || "null"}`);
+          console.log(`   New Value: ${revision.newValue || "null"}`);
         });
 
         console.log("\n" + "=".repeat(70));
-        console.log("📋 REVISION HISTORY JSON");
+        console.log("📋 REVISION HISTORY JSON (Ready for Database)");
         console.log("=".repeat(70));
         console.log(JSON.stringify(revisions, null, 2));
       } else {
