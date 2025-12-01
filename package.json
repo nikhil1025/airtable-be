@@ -10,7 +10,8 @@
         "test": "echo \"Error: no test specified\" && exit 1",
         "clear-oauth-tokens": "ts-node src/scripts/clear-oauth-tokens.ts",
         "setup-test-data": "ts-node src/scripts/setup-test-data.ts",
-        "test:revision-scraping": "ts-node src/scripts/test-revision-scraping.ts"
+        "test:revision-scraping": "ts-node src/scripts/test-revision-scraping.ts",
+        "bulk:revision-scraping": "ts-node src/scripts/bulk-revision-scraping.ts"
     },
     "keywords": [
         "airtable",

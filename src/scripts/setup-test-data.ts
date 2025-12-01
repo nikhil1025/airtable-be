@@ -1,16 +1,6 @@
 import { connectDatabase } from "../config/database";
 import { AirtableConnection, Ticket } from "../models";
 
-/**
- * SETUP TEST DATA FOR REVISION SCRAPING TEST
- *
- * This script checks existing data in MongoDB for testing:
- * Database: airtable-integration
- *
- * 1. Checks AirtableConnection for cookies
- * 2. Checks Ticket collection for test data
- * 3. Shows recommendations based on what's available
- */
 
 async function setupTestData() {
   try {
