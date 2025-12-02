@@ -29,6 +29,7 @@
         "node": ">=22.0.0"
     },
     "dependencies": {
+        "@types/uuid": "^10.0.0",
         "axios": "^1.6.2",
         "cheerio": "^1.0.0-rc.12",
         "cookie": "^0.6.0",
@@ -38,7 +39,8 @@
         "express-rate-limit": "^7.1.5",
         "helmet": "^7.1.0",
         "mongoose": "^8.0.3",
-        "puppeteer": "^24.31.0"
+        "puppeteer": "^24.31.0",
+        "uuid": "^13.0.0"
     },
     "devDependencies": {
         "@types/cookie": "^0.6.0",
