@@ -1,33 +1,27 @@
 import { Router } from "express";
 import {
   fetchUsersForWorkspace,
+  fetchUsersFromAllWorkspaces,
   getUsers,
+  getWorkspaces,
   syncUsers,
 } from "../controllers/usersController";
 
 const router = Router();
 
-/**
- * @route GET /api/users/fetch/:userId
- * @description Fetch workspace users using cookie-based authentication (similar to revision history)
- * @param userId - User ID in params
- * @requires Valid cookies set via /api/airtable/cookies/set-cookies
- */
-router.get("/fetch/:userId", fetchUsersForWorkspace);
+// Get all workspaces for a user
+router.get("/workspaces/:userId", getWorkspaces);
 
-/**
- * @route POST /api/users
- * @description Get workspace users from MongoDB cache
- * @body { userId: string }
- */
+// Fetch users from all workspaces with detailed results
+router.get("/fetch-all/:userId", fetchUsersFromAllWorkspaces);
+
+// Fetch users for a specific workspace or all workspaces
+router.get("/fetch/:userId/:workspaceId?", fetchUsersForWorkspace);
+
+// Get users from cache
 router.post("/", getUsers);
 
-/**
- * @route POST /api/users/sync
- * @description Sync workspace users from Airtable using cookie-based authentication
- * @body { userId: string }
- * @requires Valid access token set via /api/airtable/cookies/set-token
- */
+// Sync users (refresh from Airtable)
 router.post("/sync", syncUsers);
 
 export default router;

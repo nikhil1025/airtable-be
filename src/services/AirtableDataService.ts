@@ -451,7 +451,7 @@ export class AirtableDataService {
    * Fetches ALL workspace users from Airtable API
    * Uses cookie-based authentication to directly fetch from /workspace/workspaceSettings endpoint
    * This bypasses OAuth and works with browser-extracted cookies/tokens.
-   * 
+   *
    * This method is called separately from sync and requires valid cookies/access token.
    */
   async fetchAllWorkspaceUsers(
@@ -515,7 +515,8 @@ export class AirtableDataService {
         return {
           workspaceUsers: [],
         };
-      }      logger.info(
+      }
+      logger.info(
         `[USERS] Fetching workspace users for workspace ${workspaceId}`,
         {
           userId,
@@ -755,6 +756,9 @@ export class AirtableDataService {
         createdTime: user.createdTime,
         lastActivityTime: user.lastActivityTime,
         invitedToAirtableByUserId: user.invitedToAirtableByUserId,
+        workspaceId: user.workspaceId,
+        workspaceName: user.workspaceName,
+        permissionLevel: user.permissionLevel,
       }));
 
       logger.info("[USERS] Fetched workspace users from MongoDB", {

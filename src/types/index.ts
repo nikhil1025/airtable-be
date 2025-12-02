@@ -40,6 +40,9 @@ export interface AirtableWorkspaceUser {
   createdTime?: string;
   lastActivityTime?: string;
   invitedToAirtableByUserId?: string;
+  workspaceId?: string;
+  workspaceName?: string;
+  permissionLevel?: string;
 }
 
 export interface BillableUserProfile {

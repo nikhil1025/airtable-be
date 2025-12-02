@@ -9,6 +9,9 @@ export interface IWorkspaceUser extends Document {
   createdTime?: string;
   lastActivityTime?: string;
   invitedToAirtableByUserId?: string;
+  workspaceId?: string;
+  workspaceName?: string;
+  permissionLevel?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -42,6 +45,15 @@ const WorkspaceUserSchema = new Schema<IWorkspaceUser>(
       type: String,
     },
     invitedToAirtableByUserId: {
+      type: String,
+    },
+    workspaceId: {
+      type: String,
+    },
+    workspaceName: {
+      type: String,
+    },
+    permissionLevel: {
       type: String,
     },
   },
