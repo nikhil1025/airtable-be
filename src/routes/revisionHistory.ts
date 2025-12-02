@@ -1,5 +1,6 @@
 import { Router } from "express";
 import {
+  cleanupDuplicates,
   fetchRevisionHistoriesForUser,
   getAllRevisionsFlat,
   getRecordRevisions,
@@ -16,5 +17,6 @@ router.get("/all/:userId", getAllRevisionsFlat);
 router.get("/record/:recordId", getRecordRevisions);
 router.get("/filter", getRevisionsByFilter);
 router.post("/scrape/record", scrapeSingleRecord);
+router.post("/cleanup/:userId", cleanupDuplicates);
 
 export default router;

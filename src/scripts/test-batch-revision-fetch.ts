@@ -141,9 +141,10 @@ class BatchRevisionFetcher {
     batch: TaskItem[]
   ): Promise<void> {
     return new Promise((resolve, reject) => {
+      // Always use compiled JS version from dist
       const workerPath = path.join(
-        __dirname,
-        "../workers/revisionHistoryFetchWorker.js"
+        process.cwd(),
+        "dist/workers/revisionHistoryFetchWorker.js"
       );
 
       const worker = new Worker(workerPath, {

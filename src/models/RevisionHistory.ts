@@ -50,12 +50,12 @@ const RevisionHistorySchema: Schema = new Schema(
     },
     tableId: {
       type: String,
-      required: true,
+      required: false,
       index: true,
     },
     userId: {
       type: String,
-      required: true,
+      required: false,
       index: true,
     },
     rawData: {

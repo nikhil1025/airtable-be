@@ -29,6 +29,8 @@ interface ParsedRevision {
   authoredBy: string;
   authorName?: string;
   baseId: string;
+  tableId?: string;
+  userId: string;
 }
 
 /**
@@ -44,6 +46,8 @@ function parseActivityHTML(
   },
   recordId: string,
   baseId: string,
+  userId: string,
+  tableId?: string,
   userInfo?: { name?: string }
 ): ParsedRevision[] {
   const $ = cheerio.load(activityData.diffRowHtml);
@@ -137,6 +141,8 @@ function parseActivityHTML(
       authoredBy: activityData.originatingUserId,
       authorName: userInfo?.name,
       baseId,
+      tableId,
+      userId,
     };
 
     revisions.push(revision);
@@ -231,7 +237,7 @@ async function processBatch(data: WorkerData) {
     // Process all tasks in this batch
     for (let i = 0; i < tasks.length; i++) {
       const task = tasks[i];
-      const { recordId, baseId, cookies, applicationId } = task;
+      const { recordId, baseId, cookies, applicationId, userId } = task;
 
       try {
         // Fetch revision history using axios (NO PUPPETEER)
@@ -260,14 +266,16 @@ async function processBatch(data: WorkerData) {
         for (const [activityId, activityData] of Object.entries(
           rowActivityInfoById
         ) as [string, any][]) {
-          const userId = activityData.originatingUserId;
-          const userInfo = userInfoById[userId];
+          const authorId = activityData.originatingUserId;
+          const userInfo = userInfoById[authorId];
 
           const parsedRevisions = parseActivityHTML(
             activityId,
             activityData,
             recordId,
             baseId,
+            userId,
+            undefined, // tableId not available in this context
             userInfo
           );
 

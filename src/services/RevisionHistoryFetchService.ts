@@ -1,548 +1,457 @@
-import * as os from "os";
 import * as path from "path";
 import { Worker } from "worker_threads";
 import { AirtableConnection, RevisionHistory, Ticket } from "../models";
 import { decrypt, isEncrypted } from "../utils/encryption";
+import { logger } from "../utils/errors";
 
 /**
- * REVISION HISTORY FETCH SERVICE (WORKER THREAD VERSION)
+ * REVISION HISTORY FETCH SERVICE (AXIOS-BASED BATCH PROCESSING)
  *
  * This service fetches revision histories for all tickets of a user using worker threads
- * for parallel processing, stores them in MongoDB RevisionHistory collection, and returns the results.
+ * with axios HTTP requests (NO PUPPETEER), stores them in MongoDB, and returns the results.
  *
- * PERFORMANCE: Uses worker thread pool to process multiple tickets concurrently
+ * PERFORMANCE OPTIMIZATIONS:
+ * - Divides tasks evenly across worker threads
+ * - Each worker connects to MongoDB ONCE and reuses the connection
+ * - Batch bulkWrite operations per worker (not per record)
+ * - Pure axios HTTP requests for maximum speed
  */
 
-interface RevisionHistoryItem {
-  uuid: string;
-  issueId: string;
-  columnType: string;
-  oldValue: any;
-  newValue: any;
-  createdDate: Date;
-  authoredBy: string;
+interface TaskItem {
+  recordId: string;
+  baseId: string;
+  cookies: string;
+  applicationId: string;
+  userId: string;
 }
 
-interface TicketData {
-  airtableRecordId: string;
-  rowId: string;
-  baseId: string;
-  tableId: string;
-  fields: any;
+interface WorkerResult {
+  success: boolean;
+  recordId: string;
+  revisionsFound: number;
+  error?: string;
+}
+
+interface ProgressMessage {
+  type: "progress";
+  workerId: number;
+  processed: number;
+  total: number;
+  recordId: string;
+  revisionsFound: number;
+}
+
+interface CompleteMessage {
+  type: "complete";
+  workerId: number;
+  results: WorkerResult[];
+  totalRevisions: number;
 }
 
 export class RevisionHistoryFetchService {
   private userId: string;
-  private cookies: string = "";
-  private workerPool: Worker[] = [];
-  private poolSize: number;
+  private maxWorkers: number;
 
-  constructor(userId: string) {
+  constructor(userId: string, maxWorkers: number = 8) {
     this.userId = userId;
-    // Use CPU cores - 1 for optimal performance, minimum 2, maximum 8
-    this.poolSize = Math.min(Math.max(os.cpus().length - 1, 2), 8);
-    console.log(
-      `[RevisionHistoryFetchService]  Initialized with ${this.poolSize} worker threads`
-    );
-  }
-
-  /**
-   * Initialize worker pool
-   */
-  private initializeWorkerPool(): void {
-    console.log(
-      `[RevisionHistoryFetchService]  Initializing ${this.poolSize} workers...`
-    );
-
-    const workerPath = path.resolve(
-      __dirname,
-      "../workers/revisionHistoryWorker.js"
-    );
-
-    // Check if compiled .js exists, otherwise use .ts for development
-    const tsWorkerPath = path.resolve(
-      __dirname,
-      "../workers/revisionHistoryWorker.ts"
-    );
-
-    for (let i = 0; i < this.poolSize; i++) {
-      const worker = new Worker(
-        require("fs").existsSync(workerPath) ? workerPath : tsWorkerPath,
-        {
-          execArgv: require("fs").existsSync(workerPath)
-            ? []
-            : ["-r", "ts-node/register"],
-        }
-      );
-
-      worker.on("error", (error) => {
-        console.error(
-          `[RevisionHistoryFetchService]  Worker ${i} error:`,
-          error
-        );
-      });
-
-      worker.on("exit", (code) => {
-        if (code !== 0) {
-          console.warn(
-            `[RevisionHistoryFetchService]   Worker ${i} exited with code ${code}`
-          );
-        }
-      });
-
-      this.workerPool.push(worker);
-    }
-
-    console.log(
-      `[RevisionHistoryFetchService]  Worker pool initialized with ${this.poolSize} workers`
-    );
-  }
-
-  /**
-   * Terminate worker pool
-   */
-  private async terminateWorkerPool(): Promise<void> {
-    console.log(
-      `[RevisionHistoryFetchService] [STOP] Terminating ${this.workerPool.length} workers...`
-    );
-
-    await Promise.all(
-      this.workerPool.map(async (worker) => {
-        await worker.terminate();
-      })
-    );
-
-    this.workerPool = [];
-    console.log(`[RevisionHistoryFetchService] [INFO] Worker pool terminated`);
-  }
-
-  /**
-   * Scrape revision history for a single record
-   */
-  async scrapeSingleRecord(
-    recordId: string,
-    baseId: string,
-    tableId: string
-  ): Promise<RevisionHistoryItem[]> {
-    try {
-      console.log(
-        `[RevisionHistoryFetchService] [INFO] Scraping single record: ${recordId}`
-      );
-
-      // Fetch cookies
-      const cookiesFetched = await this.fetchCookiesFromDB();
-      if (!cookiesFetched) {
-        throw new Error("Could not fetch cookies");
-      }
-
-      // Initialize a single worker
-      this.poolSize = 1;
-      this.initializeWorkerPool();
-
-      // Create ticket data for the single record
-      const ticketData: TicketData = {
-        airtableRecordId: recordId,
-        rowId: recordId,
-        baseId: baseId,
-        tableId: tableId,
-        fields: {},
-      };
-
-      console.log(
-        `[RevisionHistoryFetchService] [TASK] Sending scrape task to worker...`
-      );
-
-      // Process with worker
-      const revisions = await this.processTicketWithWorker(ticketData, 0);
-
-      // Terminate worker
-      await this.terminateWorkerPool();
-
-      if (revisions && revisions.length > 0) {
-        console.log(
-          `[RevisionHistoryFetchService]  Successfully scraped ${revisions.length} revisions`
-        );
-
-        // Store revisions in database
-        const bulkOps = revisions.map((revision: RevisionHistoryItem) => ({
-          updateOne: {
-            filter: { uuid: revision.uuid },
-            update: {
-              $set: {
-                ...revision,
-                userId: this.userId,
-                baseId: baseId,
-                tableId: tableId,
-                updatedAt: new Date(),
-              },
-            },
-            upsert: true,
-          },
-        }));
-
-        if (bulkOps.length > 0) {
-          await RevisionHistory.bulkWrite(bulkOps);
-          console.log(
-            `[RevisionHistoryFetchService]  Stored ${bulkOps.length} revisions in database`
-          );
-        }
-
-        return revisions;
-      } else {
-        console.log(
-          `[RevisionHistoryFetchService] [INFO] No revisions found for record ${recordId}`
-        );
-        return [];
-      }
-    } catch (error) {
-      console.error(
-        `[RevisionHistoryFetchService] Error scraping single record:`,
-        error
-      );
-      await this.terminateWorkerPool();
-      throw error;
-    }
-  }
-
-  /**
-   * Process a ticket using worker thread
-   */
-  private processTicketWithWorker(
-    ticketData: TicketData,
-    workerId: number
-  ): Promise<RevisionHistoryItem[] | null> {
-    return new Promise((resolve, reject) => {
-      const worker = this.workerPool[workerId % this.poolSize];
-
-      const messageHandler = (result: any) => {
-        worker.removeListener("message", messageHandler);
-        worker.removeListener("error", errorHandler);
-
-        if (result.success) {
-          resolve(result.revisions);
-        } else {
-          reject(new Error(result.error || "Worker failed"));
-        }
-      };
-
-      const errorHandler = (error: Error) => {
-        worker.removeListener("message", messageHandler);
-        worker.removeListener("error", errorHandler);
-        reject(error);
-      };
-
-      worker.once("message", messageHandler);
-      worker.once("error", errorHandler);
-
-      worker.postMessage({
-        type: "scrapeRevisionHistory",
-        data: {
-          ticketData,
-          cookies: this.cookies,
-          workerId: workerId % this.poolSize,
-        },
-      });
+    this.maxWorkers = maxWorkers;
+    logger.info("RevisionHistoryFetchService initialized", {
+      userId,
+      maxWorkers,
     });
   }
 
   /**
-   * Fetch cookies from MongoDB
+   * Fetch and store revision histories for all tickets of the user
+   * Uses batch processing with worker threads
    */
-  private async fetchCookiesFromDB(): Promise<boolean> {
+  async fetchAndStoreRevisionHistories(): Promise<any[]> {
+    const startTime = Date.now();
+
     try {
-      console.log(
-        `\n[RevisionHistoryFetchService] [STEP 1] Fetching cookies for user: ${this.userId}`
+      console.log(`\n${"=".repeat(70)}`);
+      console.log(`⚡ REVISION HISTORY FETCH SERVICE (AXIOS-BASED)`);
+      console.log(`${"=".repeat(70)}`);
+      console.log(`👤 User ID: ${this.userId}`);
+      console.log(`⚙️  Workers: ${this.maxWorkers}`);
+      console.log(`🚫 NO PUPPETEER - Pure axios HTTP requests`);
+      console.log(`🔄 Batch processing with MongoDB connection reuse`);
+      console.log(`⏰ Started: ${new Date().toISOString()}`);
+      console.log(`${"=".repeat(70)}\n`);
+
+      // Step 1: Clear existing revision histories for this user
+      console.log("🗑️  Step 1: Clearing existing revision histories...");
+      const deleteResult = await RevisionHistory.deleteMany({
+        userId: this.userId,
+      });
+      console.log(`✅ Cleared ${deleteResult.deletedCount} existing records\n`);
+
+      // Step 2: Fetch tickets
+      console.log("📊 Step 2: Loading tickets from MongoDB...");
+      const tickets = await Ticket.find({ userId: this.userId }).select(
+        "airtableRecordId baseId tableId"
       );
 
+      if (tickets.length === 0) {
+        console.log("ℹ️  No tickets found for user");
+        return [];
+      }
+
+      console.log(`✅ Found ${tickets.length} tickets\n`);
+
+      // Step 3: Get cookies
+      console.log("🔑 Step 3: Loading authentication cookies...");
       const connection = await AirtableConnection.findOne({
         userId: this.userId,
       });
 
       if (!connection || !connection.cookies) {
-        console.error(
-          `[RevisionHistoryFetchService]  No cookies found for userId: ${this.userId}`
-        );
-        return false;
-      }
-      console.log(
-        `[RevisionHistoryFetchService]  Found AirtableConnection document`
-      );
-      console.log(
-        `[RevisionHistoryFetchService]  Cookie length: ${
-          connection.cookies?.length || 0
-        } chars`
-      );
-
-      let cookieString = connection.cookies;
-      if (isEncrypted(cookieString)) {
-        console.log(
-          "[RevisionHistoryFetchService] [INFO] Cookies are encrypted, decrypting..."
-        );
-        try {
-          cookieString = decrypt(cookieString);
-          console.log(
-            "[RevisionHistoryFetchService]  Cookies decrypted successfully"
-          );
-        } catch (error) {
-          console.error(
-            "[RevisionHistoryFetchService]  Failed to decrypt cookies:",
-            error
-          );
-          return false;
-        }
-      } else {
-        console.log("[RevisionHistoryFetchService]  Cookies are not encrypted");
+        throw new Error("No cookies found for user - please login first");
       }
 
-      this.cookies = cookieString;
-      console.log(
-        `[RevisionHistoryFetchService]  Cookies retrieved (${cookieString.length} chars)`
-      );
-      console.log(
-        `[RevisionHistoryFetchService]  Cookies valid until: ${
-          connection.cookiesValidUntil
-            ? new Date(connection.cookiesValidUntil).toISOString()
-            : "Not set"
-        }`
-      );
+      let cookiesString = connection.cookies;
+      if (isEncrypted(cookiesString)) {
+        console.log("🔓 Decrypting cookies...");
+        cookiesString = decrypt(cookiesString);
+      }
 
-      return true;
-    } catch (error) {
-      console.error(
-        "[RevisionHistoryFetchService] Error fetching cookies:",
-        error
-      );
-      return false;
-    }
-  }
+      console.log(`✅ Cookies loaded and ready\n`);
 
-  /**
-   * Fetch all tickets from MongoDB
-   */
-  private async fetchAllTickets(): Promise<TicketData[]> {
-    try {
-      console.log(
-        `\n[RevisionHistoryFetchService]  Step 2: Fetching all tickets for user: ${this.userId}`
-      );
-
-      const tickets = await Ticket.find({ userId: this.userId }).select(
-        "airtableRecordId rowId baseId tableId fields"
-      );
-
-      console.log(
-        `[RevisionHistoryFetchService]  Found ${tickets.length} tickets to process`
-      );
-
-      return tickets.map((ticket) => ({
-        airtableRecordId: ticket.airtableRecordId,
-        rowId: ticket.rowId,
+      // Step 4: Build task list
+      console.log("📝 Step 4: Building task list...");
+      const allTasks: TaskItem[] = tickets.map((ticket) => ({
+        recordId: ticket.airtableRecordId,
         baseId: ticket.baseId,
-        tableId: ticket.tableId,
-        fields: ticket.fields,
+        cookies: cookiesString,
+        applicationId: ticket.baseId,
+        userId: this.userId,
       }));
-    } catch (error) {
-      console.error(
-        "[RevisionHistoryFetchService] Error fetching tickets:",
-        error
-      );
-      return [];
-    }
-  }
 
-  /**
-   * Main execution: Fetch all revision histories using worker threads and store in MongoDB
-   */
-  /**
-   * Main execution: Fetch all revision histories using worker threads and store in MongoDB
-   */
-  async fetchAndStoreRevisionHistories(): Promise<any[]> {
-    const startTime = Date.now();
-    try {
-      console.log(`\n${"=".repeat(70)}`);
+      console.log(`✅ ${allTasks.length} tasks ready\n`);
+
+      // Step 5: Process with workers
       console.log(
-        `[RevisionHistoryFetchService] [START] STARTING REVISION HISTORY FETCH (WORKER THREAD MODE)`
+        `⚡ Step 5: Dividing ${allTasks.length} tasks across ${this.maxWorkers} workers...\n`
       );
-      console.log(
-        `[RevisionHistoryFetchService] [INFO] User ID: ${this.userId}`
-      );
-      console.log(
-        `[RevisionHistoryFetchService] [INFO] Worker threads: ${this.poolSize}`
-      );
-      console.log(
-        `[RevisionHistoryFetchService] [INFO] Started at: ${new Date().toISOString()}`
-      );
-      console.log(`${"=".repeat(70)}`);
 
-      // Fetch cookies
-      const cookiesFetched = await this.fetchCookiesFromDB();
-      if (!cookiesFetched) {
-        throw new Error("Could not fetch cookies");
-      }
+      const results = await this.processBatches(allTasks);
 
-      // Initialize worker pool
-      this.initializeWorkerPool();
-
-      // Fetch all tickets
-      const tickets = await this.fetchAllTickets();
-      if (tickets.length === 0) {
-        console.log(
-          `[RevisionHistoryFetchService] [INFO] No tickets found, exiting...`
-        );
-        await this.terminateWorkerPool();
-        return [];
-      }
-
-      console.log(`\n${"=".repeat(70)}`);
-      console.log(
-        `[RevisionHistoryFetchService] [STEP 3] PROCESSING ${tickets.length} TICKETS WITH ${this.poolSize} WORKERS`
-      );
-      console.log(`${"=".repeat(70)}\n`);
-
-      const allRevisions: any[] = [];
-      const batchSize = this.poolSize; // Process in batches equal to pool size
-      let processedCount = 0;
-      let successCount = 0;
-      let failedCount = 0;
-
-      // Process tickets in batches
-      for (let i = 0; i < tickets.length; i += batchSize) {
-        const batch = tickets.slice(i, i + batchSize);
-        const batchNumber = Math.floor(i / batchSize) + 1;
-        const totalBatches = Math.ceil(tickets.length / batchSize);
-
-        console.log(
-          `\n[RevisionHistoryFetchService] [BATCH ${batchNumber}/${totalBatches}] Processing batch ${batchNumber}/${totalBatches} (${batch.length} tickets in parallel)...`
-        );
-
-        // Process batch in parallel using worker threads
-        const batchPromises = batch.map((ticket, idx) =>
-          this.processTicketWithWorker(ticket, i + idx)
-            .then((revisions) => ({ ticket, revisions, success: true }))
-            .catch((error) => ({ ticket, error, success: false }))
-        );
-
-        const batchResults = await Promise.all(batchPromises);
-
-        // Process results
-        for (const result of batchResults) {
-          processedCount++;
-          const recordId = result.ticket.airtableRecordId;
-
-          console.log(
-            `\n[RevisionHistoryFetchService] [RECORD ${processedCount}/${tickets.length}] ${recordId}`
-          );
-
-          if (
-            result.success &&
-            "revisions" in result &&
-            result.revisions &&
-            result.revisions.length > 0
-          ) {
-            console.log(
-              `[RevisionHistoryFetchService]  Found ${result.revisions.length} revision items`
-            );
-
-            // Store in MongoDB
-            console.log(
-              `[RevisionHistoryFetchService]  Storing ${result.revisions.length} revisions...`
-            );
-            for (const revision of result.revisions) {
-              try {
-                const revisionDoc = await RevisionHistory.findOneAndUpdate(
-                  { uuid: revision.uuid, issueId: revision.issueId },
-                  {
-                    uuid: revision.uuid,
-                    issueId: revision.issueId,
-                    columnType: revision.columnType,
-                    oldValue: revision.oldValue || "",
-                    newValue: revision.newValue || "",
-                    createdDate: revision.createdDate,
-                    authoredBy: revision.authoredBy,
-                    baseId: result.ticket.baseId,
-                    tableId: result.ticket.tableId,
-                    userId: this.userId,
-                  },
-                  { upsert: true, new: true }
-                );
-
-                allRevisions.push(revisionDoc);
-              } catch (dbError) {
-                console.error(
-                  `[RevisionHistoryFetchService]  Error storing revision:`,
-                  dbError
-                );
-              }
-            }
-            console.log(
-              `[RevisionHistoryFetchService]  Stored ${result.revisions.length} revisions`
-            );
-            successCount++;
-          } else if (result.success && "revisions" in result) {
-            console.log(
-              `[RevisionHistoryFetchService] [INFO] No revision history found`
-            );
-            successCount++;
-          } else if (!result.success && "error" in result) {
-            console.error(
-              `[RevisionHistoryFetchService]  Error: ${
-                result.error?.message || "Unknown error"
-              }`
-            );
-            failedCount++;
-          }
-        }
-
-        console.log(
-          `[RevisionHistoryFetchService]  Batch ${batchNumber} complete: ${
-            batchResults.filter((r) => r.success).length
-          } success, ${batchResults.filter((r) => !r.success).length} failed`
-        );
-
-        // Small delay between batches
-        if (i + batchSize < tickets.length) {
-          console.log(
-            `[RevisionHistoryFetchService] [WAIT] Waiting 2s before next batch...`
-          );
-          await new Promise((resolve) => setTimeout(resolve, 2000));
-        }
-      }
-
-      // Cleanup
-      await this.terminateWorkerPool();
-
+      // Step 6: Summary
       const endTime = Date.now();
       const duration = ((endTime - startTime) / 1000).toFixed(2);
+      const successful = results.filter((r) => r.success).length;
+      const failed = results.filter((r) => !r.success).length;
+      const totalRevisions = results.reduce(
+        (sum, r) => sum + r.revisionsFound,
+        0
+      );
 
       console.log(`\n${"=".repeat(70)}`);
+      console.log(`🎉 FETCH COMPLETED`);
+      console.log(`${"=".repeat(70)}`);
+      console.log(`⏱️  Duration: ${duration}s`);
+      console.log(`📊 Total Records: ${results.length}`);
+      console.log(`✅ Successful: ${successful}`);
+      console.log(`❌ Failed: ${failed}`);
+      console.log(`📝 Total Revisions: ${totalRevisions}`);
+      console.log(`⚡ Workers: ${this.maxWorkers}`);
       console.log(
-        `[RevisionHistoryFetchService]  FETCH COMPLETED SUCCESSFULLY`
+        `🔄 MongoDB Connections: ${this.maxWorkers} (one per worker, reused)`
       );
       console.log(
-        `[RevisionHistoryFetchService]  Total revisions stored: ${allRevisions.length}`
+        `🚀 Speed: ${(results.length / parseFloat(duration)).toFixed(
+          2
+        )} records/sec`
       );
-      console.log(
-        `[RevisionHistoryFetchService]  Success: ${successCount}/${tickets.length} tickets`
-      );
-      console.log(
-        `[RevisionHistoryFetchService]  Failed: ${failedCount}/${tickets.length} tickets`
-      );
-      console.log(
-        `[RevisionHistoryFetchService] [INFO] Total time: ${duration}s`
-      );
-      console.log(
-        `[RevisionHistoryFetchService]  Average: ${(
-          tickets.length / parseFloat(duration)
-        ).toFixed(2)} tickets/second`
-      );
-      console.log(
-        `[RevisionHistoryFetchService]  Completed at: ${new Date().toISOString()}`
-      );
+      console.log(`⏰ Completed: ${new Date().toISOString()}`);
       console.log(`${"=".repeat(70)}\n`);
+
+      // Fetch all stored revisions for return
+      const allRevisions = await RevisionHistory.find({ userId: this.userId })
+        .sort({ createdDate: -1 })
+        .lean();
 
       return allRevisions;
     } catch (error) {
-      console.error("[RevisionHistoryFetchService] Unexpected error:", error);
-      await this.terminateWorkerPool();
+      logger.error("RevisionHistoryFetchService error", {
+        error,
+        userId: this.userId,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Process tasks in batches using worker threads
+   */
+  private async processBatches(allTasks: TaskItem[]): Promise<WorkerResult[]> {
+    // Divide tasks evenly across workers
+    const batches: TaskItem[][] = [];
+    const tasksPerWorker = Math.ceil(allTasks.length / this.maxWorkers);
+
+    for (let i = 0; i < this.maxWorkers; i++) {
+      const start = i * tasksPerWorker;
+      const end = Math.min(start + tasksPerWorker, allTasks.length);
+      const batch = allTasks.slice(start, end);
+
+      if (batch.length > 0) {
+        batches.push(batch);
+        console.log(`   Worker ${i + 1}: ${batch.length} tasks`);
+      }
+    }
+
+    console.log(`\n🔥 Starting ${batches.length} workers...\n`);
+
+    // Spawn all workers in parallel
+    const results: WorkerResult[] = [];
+    let processedCount = 0;
+
+    const workerPromises = batches.map((batch, index) =>
+      this.spawnBatchWorker(index + 1, batch, (recordId, revisionsFound) => {
+        processedCount++;
+        const status = revisionsFound > 0 ? "✅" : "⚪";
+        console.log(
+          `${status} [${processedCount}/${allTasks.length}] W${
+            index + 1
+          } - ${recordId.substring(0, 18)}... → ${revisionsFound} revisions`
+        );
+      })
+    );
+
+    const workerResults = await Promise.all(workerPromises);
+
+    // Flatten results
+    workerResults.forEach((workerResult) => {
+      results.push(...workerResult);
+    });
+
+    return results;
+  }
+
+  /**
+   * Spawn a single batch worker
+   */
+  private async spawnBatchWorker(
+    workerId: number,
+    batch: TaskItem[],
+    onProgress: (recordId: string, revisionsFound: number) => void
+  ): Promise<WorkerResult[]> {
+    return new Promise((resolve, reject) => {
+      // Use compiled worker from dist directory
+      const workerPath = path.join(
+        process.cwd(),
+        "dist/workers/revisionHistoryFetchWorker.js"
+      );
+
+      const worker = new Worker(workerPath, {
+        workerData: {
+          workerId,
+          tasks: batch,
+        },
+      });
+
+      let results: WorkerResult[] = [];
+
+      worker.on(
+        "message",
+        (message: ProgressMessage | CompleteMessage | any) => {
+          if (message.type === "progress") {
+            onProgress(message.recordId, message.revisionsFound);
+          } else if (message.type === "complete") {
+            results = message.results;
+            console.log(
+              `\n✨ Worker ${message.workerId} DONE: ${message.totalRevisions} total revisions\n`
+            );
+            resolve(results);
+          } else if (message.type === "error") {
+            logger.error(`Worker ${workerId} error`, { error: message.error });
+            resolve(results); // Return whatever results we have
+          }
+        }
+      );
+
+      worker.on("error", (error) => {
+        logger.error(`Worker ${workerId} error`, { error });
+        reject(error);
+      });
+
+      worker.on("exit", (code) => {
+        if (code !== 0) {
+          logger.warn(`Worker ${workerId} exited with code ${code}`);
+        }
+      });
+    });
+  }
+
+  /**
+   * Scrape revision history for a single record
+   * (Backward compatibility method)
+   */
+  async scrapeSingleRecord(recordId: string, baseId: string): Promise<any[]> {
+    try {
+      console.log(
+        `\n[RevisionHistoryFetchService] Fetching single record: ${recordId}`
+      );
+
+      // Get cookies
+      const connection = await AirtableConnection.findOne({
+        userId: this.userId,
+      });
+
+      if (!connection || !connection.cookies) {
+        throw new Error("No cookies found for user");
+      }
+
+      let cookiesString = connection.cookies;
+      if (isEncrypted(cookiesString)) {
+        cookiesString = decrypt(cookiesString);
+      }
+
+      // Create single task
+      const task: TaskItem = {
+        recordId,
+        baseId,
+        cookies: cookiesString,
+        applicationId: baseId,
+        userId: this.userId,
+      };
+
+      // Process with single worker
+      const results = await this.spawnBatchWorker(1, [task], () => {});
+
+      if (results.length > 0 && results[0].success) {
+        console.log(
+          `✅ Found ${results[0].revisionsFound} revisions for record ${recordId}`
+        );
+
+        // Fetch stored revisions
+        const revisions = await RevisionHistory.find({
+          issueId: recordId,
+          userId: this.userId,
+        }).lean();
+
+        return revisions;
+      }
+
+      return [];
+    } catch (error) {
+      logger.error("Error scraping single record", { error, recordId });
+      throw error;
+    }
+  }
+
+  /**
+   * Clean up duplicate revision history records
+   * Removes duplicates based on matching newValue, oldValue, and createdDate
+   * Keeps only one record when duplicates are found
+   */
+  async cleanupDuplicates(userId?: string): Promise<{
+    totalChecked: number;
+    duplicatesRemoved: number;
+    groupsProcessed: number;
+  }> {
+    try {
+      const targetUserId = userId || this.userId;
+      console.log(
+        `\n${"=".repeat(70)}\n🧹 DUPLICATE CLEANUP STARTED\n${"=".repeat(70)}`
+      );
+      console.log(`👤 User ID: ${targetUserId || "ALL USERS"}\n`);
+
+      // Step 1: Find all revision histories for the user (or all if undefined)
+      console.log("📊 Step 1: Loading all revision histories...");
+      const query = targetUserId ? { userId: targetUserId } : {};
+      const allRevisions = await RevisionHistory.find(query).lean();
+
+      console.log(`✅ Found ${allRevisions.length} total records\n`);
+
+      if (allRevisions.length === 0) {
+        console.log("⚠️  No records to check");
+        return { totalChecked: 0, duplicatesRemoved: 0, groupsProcessed: 0 };
+      }
+
+      // Step 2: Group by newValue, oldValue, and createdDate
+      console.log(
+        "🔍 Step 2: Grouping records by newValue, oldValue, and createdDate..."
+      );
+
+      const groupMap = new Map<string, any[]>();
+
+      for (const revision of allRevisions) {
+        // Create a unique key based on the three fields
+        const createdDateStr = new Date(revision.createdDate).toISOString();
+        const key = `${revision.newValue}|||${revision.oldValue}|||${createdDateStr}`;
+
+        if (!groupMap.has(key)) {
+          groupMap.set(key, []);
+        }
+        groupMap.get(key)!.push(revision);
+      }
+
+      console.log(`✅ Created ${groupMap.size} unique groups\n`);
+
+      // Step 3: Find and remove duplicates
+      console.log("🗑️  Step 3: Identifying and removing duplicates...");
+
+      let duplicatesRemoved = 0;
+      let groupsWithDuplicates = 0;
+      const idsToDelete: string[] = [];
+
+      for (const [, records] of groupMap.entries()) {
+        if (records.length > 1) {
+          groupsWithDuplicates++;
+
+          // Keep the first record, delete the rest
+          const toDelete = records.slice(1);
+          const deleteIds = toDelete.map((r) => r._id.toString());
+          idsToDelete.push(...deleteIds);
+
+          console.log(
+            `   ⚠️  Found ${records.length} duplicates (keeping 1, removing ${toDelete.length})`
+          );
+          console.log(`      newValue: "${records[0].newValue}"`);
+          console.log(`      oldValue: "${records[0].oldValue}"`);
+          console.log(
+            `      createdDate: ${new Date(
+              records[0].createdDate
+            ).toISOString()}`
+          );
+
+          duplicatesRemoved += toDelete.length;
+        }
+      }
+
+      // Step 4: Perform bulk delete
+      if (idsToDelete.length > 0) {
+        console.log(
+          `\n🔥 Step 4: Deleting ${idsToDelete.length} duplicate records...`
+        );
+
+        const deleteResult = await RevisionHistory.deleteMany({
+          _id: { $in: idsToDelete },
+        });
+
+        console.log(`✅ Deleted ${deleteResult.deletedCount} records\n`);
+      } else {
+        console.log("\n✨ No duplicates found! Database is clean.\n");
+      }
+
+      // Step 5: Summary
+      console.log(`${"=".repeat(70)}`);
+      console.log(`🎉 CLEANUP COMPLETE`);
+      console.log(`${"=".repeat(70)}`);
+      console.log(`📊 Total Records Checked: ${allRevisions.length}`);
+      console.log(`🔍 Unique Groups: ${groupMap.size}`);
+      console.log(`⚠️  Groups with Duplicates: ${groupsWithDuplicates}`);
+      console.log(`🗑️  Duplicates Removed: ${duplicatesRemoved}`);
+      console.log(`${"=".repeat(70)}\n`);
+
+      return {
+        totalChecked: allRevisions.length,
+        duplicatesRemoved,
+        groupsProcessed: groupsWithDuplicates,
+      };
+    } catch (error) {
+      logger.error("Error cleaning up duplicates", { error });
       throw error;
     }
   }
