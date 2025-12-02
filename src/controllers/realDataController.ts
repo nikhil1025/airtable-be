@@ -1,8 +1,10 @@
 import { Request, Response } from "express";
 import AirtableConnection from "../models/AirtableConnection";
 import Project from "../models/Project";
+import RevisionHistory from "../models/RevisionHistory";
 import Table from "../models/Table";
 import Ticket from "../models/Ticket";
+import { WorkspaceUser } from "../models/WorkspaceUser";
 import {
   logger,
   sendErrorResponse,
@@ -52,7 +54,8 @@ export async function getRealStats(
       projects: await Project.countDocuments({ userId }),
       tables: await Table.countDocuments({ userId }),
       tickets: await Ticket.countDocuments({ userId }),
-      revisions: 0, // No revision history model yet
+      users: await WorkspaceUser.countDocuments({ userId }),
+      revisions: await RevisionHistory.countDocuments({ userId }),
     };
 
     // If current user has no data, fall back to any user's data
@@ -64,7 +67,8 @@ export async function getRealStats(
         projects: await Project.countDocuments({}),
         tables: await Table.countDocuments({}),
         tickets: await Ticket.countDocuments({}),
-        revisions: 0,
+        users: await WorkspaceUser.countDocuments({}),
+        revisions: await RevisionHistory.countDocuments({}),
       };
     }
 

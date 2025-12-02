@@ -7,6 +7,7 @@ import {
   getRevisionHistoriesForUser,
   getRevisionsByFilter,
   scrapeSingleRecord,
+  syncSingleRecord,
 } from "../controllers/revisionHistoryFetchController";
 
 const router = Router();
@@ -17,6 +18,7 @@ router.get("/all/:userId", getAllRevisionsFlat);
 router.get("/record/:recordId", getRecordRevisions);
 router.get("/filter", getRevisionsByFilter);
 router.post("/scrape/record", scrapeSingleRecord);
+router.post("/sync/record", syncSingleRecord);
 router.post("/cleanup/:userId", cleanupDuplicates);
 
 export default router;

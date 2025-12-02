@@ -9,9 +9,13 @@ import { RevisionHistory } from "../models";
  * - createdDate
  *
  * @param userId - Optional user ID to filter revisions (if not provided, cleans all)
+ * @param recordId - Optional record ID to filter revisions for a specific record
  * @returns Object with duplicate removal statistics
  */
-export async function removeDuplicateRevisions(userId?: string): Promise<{
+export async function removeDuplicateRevisions(
+  userId?: string,
+  recordId?: string
+): Promise<{
   totalRevisions: number;
   uniqueGroups: number;
   duplicateGroups: number;
@@ -20,12 +24,14 @@ export async function removeDuplicateRevisions(userId?: string): Promise<{
 }> {
   try {
     // Build query
-    const query = userId ? { userId } : {};
+    const query: any = {};
+    if (userId) query.userId = userId;
+    if (recordId) query.issueId = recordId;
 
     console.log(
       `\n[CLEANUP] Cleaning duplicate revisions${
         userId ? ` for user: ${userId}` : ""
-      }...`
+      }${recordId ? ` for record: ${recordId}` : ""}...`
     );
 
     // Get all revisions

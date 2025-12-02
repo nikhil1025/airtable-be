@@ -699,3 +699,137 @@ export const cleanupDuplicates = async (
     });
   }
 };
+
+/**
+ * Sync (scrape + cleanup duplicates) revision history for a single record
+ *
+ * POST /api/revision-history/sync/record
+ *
+ * This endpoint:
+ * 1. Scrapes revision history for the specific record
+ * 2. Automatically cleans up duplicate revisions for that record
+ * 3. Returns the cleaned revision history
+ *
+ * @param req - Request with userId, recordId, baseId, tableId in body
+ * @param res - Response with synced and cleaned revision history
+ */
+export const syncSingleRecord = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { userId, recordId, baseId, tableId } = req.body;
+
+    if (!userId || !recordId || !baseId || !tableId) {
+      res.status(400).json({
+        success: false,
+        message: "userId, recordId, baseId, and tableId are required",
+      });
+      return;
+    }
+
+    console.log(`\n${"=".repeat(70)}`);
+    console.log(` SYNCING SINGLE RECORD REVISION HISTORY`);
+    console.log(`${"=".repeat(70)}`);
+    console.log(` User ID: ${userId}`);
+    console.log(` Record ID: ${recordId}`);
+    console.log(` Base ID: ${baseId}`);
+    console.log(` Table ID: ${tableId}`);
+    console.log(` Started at: ${new Date().toISOString()}\n`);
+
+    // Step 0: Delete existing revisions for this record to prevent duplicates
+    console.log(`\n${"=".repeat(70)}`);
+    console.log(` STEP 0: REMOVING EXISTING REVISIONS`);
+    console.log(`${"=".repeat(70)}\n`);
+
+    const existingRevisions = await RevisionHistory.find({
+      issueId: recordId,
+      userId: userId,
+    });
+
+    console.log(`📊 Found ${existingRevisions.length} existing revisions`);
+
+    if (existingRevisions.length > 0) {
+      const deleteResult = await RevisionHistory.deleteMany({
+        issueId: recordId,
+        userId: userId,
+      });
+      console.log(
+        `🗑️  Deleted ${deleteResult.deletedCount} existing revisions\n`
+      );
+    } else {
+      console.log(`✓ No existing revisions to delete\n`);
+    }
+
+    // Step 1: Create service instance and scrape the record
+    const service = new RevisionHistoryFetchService(userId);
+
+    console.log(`\n${"=".repeat(70)}`);
+    console.log(` STEP 1: SCRAPING RECORD REVISION HISTORY`);
+    console.log(`${"=".repeat(70)}\n`);
+
+    const revisions = await service.scrapeSingleRecord(recordId, baseId);
+
+    console.log(
+      `✅ Scraped ${revisions.length} revision items for record ${recordId}\n`
+    );
+
+    // Step 2: Clean up any duplicates that might have been created during scraping
+    console.log(`\n${"=".repeat(70)}`);
+    console.log(` STEP 2: CLEANING UP DUPLICATE REVISIONS`);
+    console.log(`${"=".repeat(70)}\n`);
+
+    // Remove duplicates for this specific record only
+    const cleanupStats = await removeDuplicateRevisions(userId, recordId);
+
+    console.log(`\n${"=".repeat(70)}`);
+    console.log(` CLEANUP COMPLETED`);
+    console.log(`${"=".repeat(70)}`);
+    console.log(` Total Revisions Checked: ${cleanupStats.totalRevisions}`);
+    console.log(` Duplicate Groups Found: ${cleanupStats.duplicateGroups}`);
+    console.log(` Duplicates Removed: ${cleanupStats.duplicatesRemoved}`);
+    console.log(`${"=".repeat(70)}\n`);
+
+    // Step 3: Fetch final cleaned revisions
+    const finalRevisions = await RevisionHistory.find({
+      issueId: recordId,
+      userId: userId,
+    })
+      .sort({ createdDate: -1 })
+      .lean();
+
+    console.log(`\n${"=".repeat(70)}`);
+    console.log(` SYNC COMPLETED SUCCESSFULLY`);
+    console.log(`${"=".repeat(70)}`);
+    console.log(` Final Revision Count: ${finalRevisions.length}`);
+    console.log(` Completed at: ${new Date().toISOString()}`);
+    console.log(`${"=".repeat(70)}\n`);
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully synced revision history for record ${recordId}`,
+      data: {
+        recordId: recordId,
+        totalRevisions: finalRevisions.length,
+        duplicatesRemoved: cleanupStats.duplicatesRemoved,
+        revisions: finalRevisions.map((rev) => ({
+          uuid: rev.uuid,
+          issueId: rev.issueId,
+          columnType: rev.columnType,
+          oldValue: rev.oldValue,
+          newValue: rev.newValue,
+          createdDate: rev.createdDate,
+          authoredBy: rev.authoredBy,
+          authorName: rev.authorName,
+        })),
+      },
+    });
+  } catch (error: any) {
+    console.error("\n[ERROR] SYNCING SINGLE RECORD:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to sync revision history for record",
+      error: error.message,
+    });
+  }
+};
