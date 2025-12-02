@@ -1,7 +1,19 @@
 import { Router } from "express";
-import { getUsers, syncUsers } from "../controllers/usersController";
+import {
+  fetchUsersForWorkspace,
+  getUsers,
+  syncUsers,
+} from "../controllers/usersController";
 
 const router = Router();
+
+/**
+ * @route GET /api/users/fetch/:userId
+ * @description Fetch workspace users using cookie-based authentication (similar to revision history)
+ * @param userId - User ID in params
+ * @requires Valid cookies set via /api/airtable/cookies/set-cookies
+ */
+router.get("/fetch/:userId", fetchUsersForWorkspace);
 
 /**
  * @route POST /api/users
