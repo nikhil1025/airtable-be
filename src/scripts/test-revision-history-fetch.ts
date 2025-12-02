@@ -21,7 +21,8 @@ interface ParsedRevision {
 }
 
 /**
- * Parse HTML from diffRowHtml to extract Status and Assignee changes
+ * Parse HTML from diffRowHtml to extract ALL field changes
+ * Supports: select, foreignKey, asyncText, text, number, and more
  */
 function parseActivityHTML(
   activityId: string,
@@ -45,90 +46,255 @@ function parseActivityHTML(
     // Extract column name from the header
     const columnName = $container.find(".micro.strong.caps").text().trim();
 
-    // Check if this is Status or Assignee field
-    const isStatus = columnName.toLowerCase().includes("status");
-    const isAssignee =
-      columnName.toLowerCase().includes("assigned") ||
-      columnName.toLowerCase().includes("assignee");
-
-    if (!isStatus && !isAssignee) {
-      return; // Skip this field
+    if (!columnName) {
+      return; // Skip if no column name found
     }
 
-    const columnType = isStatus ? "Status" : "Assignee";
+    // Extract the data-columntype attribute to identify field type
+    const valueContainer = $container.find(".historicalCellValue");
+    const dataColumnType =
+      valueContainer.attr("data-columntype") ||
+      $container.find("[data-columntype]").first().attr("data-columntype") ||
+      "unknown";
 
-    // Extract old and new values
+    // Normalize field names
+    let normalizedColumnName = columnName;
+    if (columnName.toLowerCase().includes("assigned to")) {
+      normalizedColumnName = "Assignee";
+    }
+
+    // Create detailed columnType: "FieldName (fieldType)"
+    const columnType =
+      dataColumnType !== "unknown"
+        ? `${normalizedColumnName} (${dataColumnType})`
+        : normalizedColumnName;
+
+    // Extract old and new values based on column type
     let oldValue = "";
     let newValue = "";
 
-    // Find elements with strikethrough (removed/old values)
-    $container
-      .find('[style*="strikethrough"], .strikethrough, del')
-      .each((_i, el) => {
-        const text = $(el).text().trim();
-        if (text) {
-          oldValue = text;
-        }
-      });
+    // Handle different column types
+    switch (dataColumnType) {
+      case "select": {
+        // Single select fields (like Status)
+        const pills = $container.find(".pill, .choiceToken");
+        pills.each((_i, pill) => {
+          const $pill = $(pill);
+          const text = $pill.find(".truncate-pre, .flex-auto").text().trim();
 
-    // Find added elements (new values)
-    $container.find(".added, .foreignRecord.added").each((_i, el) => {
-      const text = $(el).text().trim();
-      if (text) {
-        newValue = text;
+          if (
+            $pill.css("text-decoration")?.includes("line-through") ||
+            $pill.parent().find('svg use[href*="Minus"]').length > 0
+          ) {
+            oldValue = text;
+          } else if ($pill.parent().find('svg use[href*="Plus"]').length > 0) {
+            newValue = text;
+          }
+        });
+        break;
       }
-    });
 
-    // For status changes, look for pill elements
-    if (isStatus) {
-      const pills = $container.find(".pill, .choiceToken");
-      pills.each((_i, pill) => {
-        const $pill = $(pill);
-        const text = $pill.find(".truncate-pre, .flex-auto").text().trim();
+      case "foreignKey": {
+        // Foreign key fields (like Assigned To, Reported By)
+        $container.find(".foreignRecord").each((_i, record) => {
+          const $record = $(record);
+          const text = $record.text().trim();
 
-        if (
-          $pill.css("text-decoration")?.includes("line-through") ||
-          $pill.parent().find('svg use[href*="Minus"]').length > 0
-        ) {
-          oldValue = text;
-        } else if ($pill.parent().find('svg use[href*="Plus"]').length > 0) {
-          newValue = text;
+          if ($record.hasClass("added")) {
+            newValue = text;
+          } else if (
+            $record.css("text-decoration")?.includes("line-through") ||
+            $record.parent().css("text-decoration")?.includes("line-through")
+          ) {
+            oldValue = text;
+          }
+        });
+        break;
+      }
+
+      case "asyncText":
+      case "text":
+      case "multilineText": {
+        // Text fields including AI-generated fields
+        const textDiff = $container.find(".textDiff");
+
+        if (textDiff.length > 0) {
+          // Handle text diffs with additions and deletions
+          let oldParts: string[] = [];
+          let newParts: string[] = [];
+
+          textDiff.contents().each((_i, node) => {
+            const $node = $(node);
+
+            if (
+              $node.hasClass("colors-background-negative") ||
+              $node.hasClass("colors-foreground-accent-negative") ||
+              $node.hasClass("strikethrough")
+            ) {
+              // Removed text
+              oldParts.push($node.text());
+            } else if ($node.hasClass("colors-background-success")) {
+              // Added text
+              newParts.push($node.text());
+            } else if ($node.hasClass("unchangedPart")) {
+              // Unchanged text - add to both
+              const text = $node.text();
+              oldParts.push(text);
+              newParts.push(text);
+            } else if ($node.hasClass("pre-wrap")) {
+              // Check for specific classes within pre-wrap
+              if (
+                $node.hasClass("colors-background-negative") ||
+                $node.hasClass("colors-foreground-accent-negative") ||
+                $node.hasClass("strikethrough")
+              ) {
+                oldParts.push($node.text());
+              } else if ($node.hasClass("colors-background-success")) {
+                newParts.push($node.text());
+              }
+            }
+          });
+
+          oldValue = oldParts.join("").trim();
+          newValue = newParts.join("").trim();
+        } else {
+          // Simple text change without diff - check for added/removed classes
+          const hasAdded =
+            $container.find(
+              ".colors-background-success, .inline-block.truncate.colors-background-success"
+            ).length > 0;
+          if (hasAdded) {
+            newValue = $container
+              .find(
+                ".colors-background-success, .inline-block.truncate.colors-background-success"
+              )
+              .text()
+              .trim();
+          } else {
+            newValue = $container.find(".historicalCellValue").text().trim();
+          }
         }
-      });
-    }
+        break;
+      }
 
-    // For assignee changes, look for foreign record elements
-    if (isAssignee) {
-      $container.find(".foreignRecord").each((_i, record) => {
-        const $record = $(record);
-        const text = $record.text().trim();
+      case "number": {
+        // Number fields
+        const diffContainer = $container.find(".historicalCellValue.diff");
 
-        if ($record.hasClass("added")) {
-          newValue = text;
+        if (diffContainer.length > 0) {
+          // Has old and new values
+          oldValue = diffContainer
+            .find(".colors-background-negative, .strikethrough")
+            .first()
+            .text()
+            .trim();
+          newValue = diffContainer
+            .find(".colors-background-success")
+            .first()
+            .text()
+            .trim();
+        } else {
+          // Null to value or simple change
+          newValue = $container
+            .find(".colors-background-success, .inline-block")
+            .text()
+            .trim();
         }
-      });
+        break;
+      }
+
+      case "date":
+      case "dateTime": {
+        // Date and DateTime fields
+        const diffContainer = $container.find(".historicalCellValue.diff");
+
+        if (diffContainer.length > 0) {
+          // Has old and new values
+          oldValue = diffContainer
+            .find(".colors-background-negative, .strikethrough")
+            .first()
+            .text()
+            .trim();
+          newValue = diffContainer
+            .find(".colors-background-success")
+            .first()
+            .text()
+            .trim();
+        } else {
+          // Null to value
+          const dateText = $container
+            .find(".truncate.css-10jy3hn")
+            .text()
+            .trim();
+          const timeZone = $container
+            .find(".caps.colors-foreground-subtle")
+            .text()
+            .trim();
+          newValue = timeZone ? `${dateText} ${timeZone}` : dateText;
+        }
+        break;
+      }
+
+      default: {
+        // Generic handler for other column types
+        // Find elements with strikethrough (removed/old values)
+        $container
+          .find(
+            '[style*="strikethrough"], .strikethrough, del, .colors-foreground-accent-negative'
+          )
+          .each((_i, el) => {
+            const text = $(el).text().trim();
+            if (text && !oldValue) {
+              oldValue = text;
+            }
+          });
+
+        // Find added elements (new values)
+        $container
+          .find(".added, .foreignRecord.added, .colors-background-success")
+          .each((_i, el) => {
+            const text = $(el).text().trim();
+            if (text && !newValue) {
+              newValue = text;
+            }
+          });
+
+        // If no specific markers found, try to get the value directly
+        if (!oldValue && !newValue) {
+          newValue = $container.find(".historicalCellValue").text().trim();
+        }
+        break;
+      }
     }
 
     // Handle null to value changes
     const isNullToValue = $container.find(".nullToValue").length > 0;
     if (isNullToValue && !oldValue) {
-      oldValue = "null";
+      oldValue = "";
     }
 
-    // Create revision entry
-    const revision: ParsedRevision = {
-      uuid: `${activityId}_${index}`,
-      issueId: recordId,
-      columnType,
-      oldValue,
-      newValue,
-      createdDate: new Date(activityData.createdTime),
-      authoredBy: activityData.originatingUserId,
-      authorName: userInfo?.name,
-      baseId,
-    };
+    // Handle value to null changes
+    const isValueToNull = $container.find(".valueToNull").length > 0;
+    if (isValueToNull && !newValue) {
+      newValue = "";
+    }
 
-    revisions.push(revision);
+    // Create revision entry only if there's a meaningful change
+    if (oldValue || newValue) {
+      const revision: ParsedRevision = {
+        uuid: `${activityId}_${index}`,
+        issueId: recordId,
+        columnType,
+        oldValue: oldValue || "",
+        newValue: newValue || "",
+        createdDate: new Date(activityData.createdTime),
+        authoredBy: userInfo?.name || activityData.originatingUserId,
+        authorName: userInfo?.name,
+        baseId,
+      };
+
+      revisions.push(revision);
+    }
   });
 
   return revisions;
