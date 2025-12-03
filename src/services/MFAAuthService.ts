@@ -237,7 +237,7 @@ export class MFAAuthService {
           sessionId,
           requiresMFA: true,
           message:
-            "MFA code required. Please enter the code from your authenticator app.",
+            "Enter your 6-digit MFA code. After submitting, we'll navigate through your workspace to extract all required cookies.",
         };
       } else {
         // No MFA - navigate to multiple pages and extract cookies
