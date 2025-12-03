@@ -143,7 +143,7 @@ export const cancelSession = async (req: Request, res: Response) => {
     logger.info("Cancel session request", { sessionId });
 
     // Cancel session
-    await mfaAuthService.cancelSession(sessionId);
+    await authSessionManager.closeSession(sessionId);
 
     return res.status(200).json({
       success: true,

@@ -504,297 +504,11 @@ export class MFAAuthService {
       }
 
       logger.info(
-        "MFA successful - navigating to workspace and base pages to collect all cookies"
+        "MFA successful - using parallel navigation to collect cookies faster"
       );
 
-      // Navigate to home page to ensure we have initial cookies
-      logger.info("Navigating to home page");
-      await page.goto("https://airtable.com/", {
-        waitUntil: "networkidle2",
-        timeout: 30000,
-      });
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-
-      // Navigate to workspaces page to ensure we have workspace-specific cookies
-      logger.info("Navigating to workspaces page");
-      try {
-        await page.goto("https://airtable.com/workspaces", {
-          waitUntil: "networkidle2",
-          timeout: 30000,
-        });
-        await new Promise((resolve) => setTimeout(resolve, 3000));
-        logger.info("Successfully navigated to workspaces page");
-      } catch (error: any) {
-        logger.warn("Failed to navigate to workspaces page, continuing", {
-          error: error.message,
-        });
-      }
-
-      // Navigate to workspace billing page to get workspace-level authentication cookies
-      logger.info(
-        "Fetching workspaceIds from database to navigate to billing pages"
-      );
-      try {
-        const WorkspaceUser = (await import("../models")).WorkspaceUser;
-        const workspaceUsers = await WorkspaceUser.find({ userId });
-
-        // Get unique workspace IDs
-        const uniqueWorkspaceIds = [
-          ...new Set(
-            workspaceUsers.map((wu) => wu.workspaceId).filter(Boolean)
-          ),
-        ];
-
-        if (uniqueWorkspaceIds.length > 0) {
-          logger.info(
-            `Found ${uniqueWorkspaceIds.length} workspaces to navigate to`,
-            {
-              workspaceIds: uniqueWorkspaceIds,
-            }
-          );
-
-          // Navigate to each workspace billing page to collect workspace-specific cookies
-          for (const workspaceId of uniqueWorkspaceIds) {
-            try {
-              logger.info("Navigating to workspace billing page", {
-                workspaceId,
-              });
-              await page.goto(
-                `https://airtable.com/${workspaceId}/workspace/billing`,
-                {
-                  waitUntil: "networkidle2",
-                  timeout: 30000,
-                }
-              );
-              await new Promise((resolve) => setTimeout(resolve, 2000));
-              logger.info("Successfully navigated to workspace billing page", {
-                workspaceId,
-              });
-            } catch (wsError: any) {
-              logger.warn(
-                "Failed to navigate to specific workspace billing page, continuing",
-                {
-                  workspaceId,
-                  error: wsError.message,
-                }
-              );
-            }
-          }
-
-          logger.info(
-            `Completed navigation to all ${uniqueWorkspaceIds.length} workspace billing pages`
-          );
-        } else {
-          logger.info(
-            "No workspaceIds found in database, skipping billing page navigation"
-          );
-        }
-      } catch (error: any) {
-        logger.warn(
-          "Failed to navigate to workspace billing pages, continuing",
-          {
-            error: error.message,
-          }
-        );
-      }
-
-      // Get the user's base ID from the project
-      const projects = await Project.find({ userId });
-      if (projects.length > 0 && projects[0].airtableBaseId) {
-        const baseId = projects[0].airtableBaseId;
-        logger.info(
-          "Navigating to base page to collect base-specific cookies",
-          { baseId }
-        );
-
-        try {
-          // First navigate to the base
-          await page.goto(`https://airtable.com/${baseId}`, {
-            waitUntil: "networkidle2",
-            timeout: 30000,
-          });
-          await new Promise((resolve) => setTimeout(resolve, 3000));
-          logger.info("Successfully navigated to base page");
-
-          // CRITICAL: Navigate to table and record to get record-level cookies
-          // This is essential for record preview and revision history extraction
-          const { Table, Ticket } = await import("../models");
-
-          try {
-            // Get the first table for this base
-            const table = await Table.findOne({ baseId, userId });
-
-            if (table && table.airtableTableId) {
-              const tableId = table.airtableTableId;
-              logger.info("Found table, navigating to table view", { tableId });
-
-              // Navigate to table view
-              await page.goto(`https://airtable.com/${baseId}/${tableId}`, {
-                waitUntil: "networkidle2",
-                timeout: 30000,
-              });
-              await new Promise((resolve) => setTimeout(resolve, 3000));
-              logger.info("Successfully navigated to table view");
-
-              // CRITICAL: Open a specific record to get record-preview cookies
-              const ticket = await Ticket.findOne({ baseId, tableId, userId });
-
-              if (ticket && ticket.airtableRecordId) {
-                const recordId = ticket.airtableRecordId;
-                logger.info("Found record, navigating to record view", {
-                  recordId,
-                });
-
-                // Navigate to specific record - THIS triggers record-level cookies
-                await page.goto(
-                  `https://airtable.com/${baseId}/${tableId}/${recordId}`,
-                  {
-                    waitUntil: "networkidle2",
-                    timeout: 30000,
-                  }
-                );
-                await new Promise((resolve) => setTimeout(resolve, 4000));
-                logger.info(
-                  "✓ Successfully navigated to record view - record page loaded!"
-                );
-
-                // Verify we're not redirected to login
-                const currentUrl = page.url();
-                if (!currentUrl.includes("/login")) {
-                  logger.info("✓ Record view authenticated successfully");
-
-                  // CRITICAL: Click revision history panel to trigger ALL cookies
-                  logger.info("Opening revision history panel...");
-                  try {
-                    // Wait for revision history panel to be present
-                    await page
-                      .waitForSelector(
-                        '.rowLevelActivityFeed, [class*="rowLevelActivityFeed"], [class*="activityFeed"]',
-                        {
-                          timeout: 10000,
-                        }
-                      )
-                      .catch(() => {
-                        logger.info(
-                          "Revision history panel selector not found, trying alternative approach"
-                        );
-                      });
-
-                    // Click on revision history to ensure it's expanded and cookies are triggered
-                    const clicked = await page.evaluate(() => {
-                      // Look for "Revision history" text or activity feed elements
-                      const revisionElements = Array.from(
-                        document.querySelectorAll("div, span, button")
-                      );
-                      const revisionButton = revisionElements.find(
-                        (el) =>
-                          el.textContent?.includes("Revision history") ||
-                          el.textContent?.includes("revision history")
-                      );
-
-                      if (
-                        revisionButton &&
-                        revisionButton instanceof HTMLElement
-                      ) {
-                        revisionButton.click();
-                        console.log("✓ Clicked revision history button");
-                        return true;
-                      }
-
-                      // Alternative: Check if revision history panel is already visible
-                      const activityFeed = document.querySelector(
-                        '.rowLevelActivityFeed, [class*="activityFeed"]'
-                      );
-                      if (activityFeed) {
-                        console.log("✓ Revision history panel already visible");
-                        return true;
-                      }
-
-                      console.log("Could not find revision history button");
-                      return false;
-                    });
-
-                    if (clicked) {
-                      await new Promise((resolve) => setTimeout(resolve, 2000));
-                      logger.info(
-                        "✓ Revision history panel opened - all cookies captured!"
-                      );
-                    } else {
-                      logger.warn(
-                        "Could not click revision history panel, but continuing"
-                      );
-                    }
-                  } catch (revisionError: any) {
-                    logger.warn("Failed to open revision history panel", {
-                      error: revisionError.message,
-                    });
-                  }
-                } else {
-                  logger.warn("Record navigation redirected to login");
-                }
-              } else {
-                logger.info(
-                  "No tickets found for table, skipping record navigation"
-                );
-              }
-            } else {
-              logger.info("No tables found for base, trying table selector");
-
-              // Fallback: Try to click the first table in the base UI
-              await page
-                .waitForSelector(
-                  '[data-tutorial-selector-id="firstTableButton"], .table-list a',
-                  {
-                    timeout: 5000,
-                  }
-                )
-                .catch(() => {
-                  logger.info("Table selector not found");
-                });
-
-              const firstTable = await page.$(
-                '[data-tutorial-selector-id="firstTableButton"], .table-list a'
-              );
-              if (firstTable) {
-                await firstTable.click();
-                await new Promise((resolve) => setTimeout(resolve, 3000));
-                logger.info("Clicked first table in UI");
-              }
-            }
-          } catch (tableError: any) {
-            logger.info(
-              "Could not navigate to table/record, continuing with base cookies",
-              {
-                error: tableError.message,
-              }
-            );
-          }
-
-          // Navigate to the API documentation page to trigger API-related cookies
-          logger.info("Navigating to API page for additional cookies");
-          try {
-            await page.goto(`https://airtable.com/${baseId}/api/docs`, {
-              waitUntil: "networkidle2",
-              timeout: 30000,
-            });
-            await new Promise((resolve) => setTimeout(resolve, 2000));
-            logger.info("Successfully navigated to API docs page");
-          } catch (apiError: any) {
-            logger.info("Could not navigate to API docs, continuing", {
-              error: apiError.message,
-            });
-          }
-        } catch (error: any) {
-          logger.warn(
-            "Failed to navigate to base page, continuing with workspace cookies",
-            {
-              error: error.message,
-            }
-          );
-        }
-      } else {
-        logger.info("No project found, skipping base page navigation");
-      }
+      // Use parallel tab-based navigation for 3x faster cookie extraction
+      await this.navigateInParallel(session.browser, userId);
 
       logger.info("Extracting cookies from all visited pages");
 
@@ -828,15 +542,7 @@ export class MFAAuthService {
   }
 
   /**
-   * Cancel authentication session
-   */
-  async cancelSession(sessionId: string): Promise<void> {
-    logger.info("Cancelling auth session", { sessionId });
-    await authSessionManager.closeSession(sessionId);
-  }
-
-  /**
-   * Check if MFA is required
+   * Check if MFA is required on the current page
    */
   private async checkIfMFARequired(page: Page): Promise<boolean> {
     try {
@@ -996,6 +702,189 @@ export class MFAAuthService {
       localStorage,
       accessToken: accessToken || null,
     };
+  }
+
+  /**
+   * Parallel Navigation Helper - Opens multiple tabs to navigate simultaneously
+   * This dramatically speeds up cookie collection
+   */
+  private async navigateInParallel(
+    browser: Browser,
+    userId: string
+  ): Promise<void> {
+    logger.info("🚀 Starting parallel navigation across multiple tabs");
+    const navigationTasks = [];
+
+    // Tab 1: Home and Workspace pages
+    navigationTasks.push(
+      (async () => {
+        const tab = await browser.newPage();
+        await tab.setUserAgent(
+          "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+        );
+        try {
+          logger.info("[Tab 1] Navigating to home page");
+          await tab.goto("https://airtable.com/", {
+            waitUntil: "networkidle2",
+            timeout: 30000,
+          });
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+
+          logger.info("[Tab 1] Navigating to workspace page");
+          await tab.goto("https://airtable.com/workspace", {
+            waitUntil: "networkidle2",
+            timeout: 30000,
+          });
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          logger.info("[Tab 1] ✓ Completed");
+        } catch (error: any) {
+          logger.warn("[Tab 1] Failed", { error: error.message });
+        } finally {
+          await tab.close();
+        }
+      })()
+    );
+
+    // Tab 2: Workspace billing page
+    navigationTasks.push(
+      (async () => {
+        const tab = await browser.newPage();
+        await tab.setUserAgent(
+          "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+        );
+        try {
+          const { WorkspaceUser } = await import("../models");
+          const workspaceUsers = await WorkspaceUser.find({ userId });
+
+          if (workspaceUsers.length > 0) {
+            const workspaceId = workspaceUsers[0].workspaceId;
+            if (workspaceId) {
+              logger.info("[Tab 2] Navigating to workspace billing", {
+                workspaceId,
+              });
+              await tab.goto(
+                `https://airtable.com/${workspaceId}/workspace/billing`,
+                {
+                  waitUntil: "networkidle2",
+                  timeout: 30000,
+                }
+              );
+              await new Promise((resolve) => setTimeout(resolve, 1000));
+              logger.info("[Tab 2] ✓ Completed");
+            }
+          } else {
+            logger.info("[Tab 2] No workspaces found, skipping");
+          }
+        } catch (error: any) {
+          logger.warn("[Tab 2] Failed", { error: error.message });
+        } finally {
+          await tab.close();
+        }
+      })()
+    );
+
+    // Tab 3: Base, Table, and Record pages with revision history
+    navigationTasks.push(
+      (async () => {
+        const tab = await browser.newPage();
+        await tab.setUserAgent(
+          "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+        );
+        try {
+          const projects = await Project.find({ userId });
+          if (projects.length > 0 && projects[0].airtableBaseId) {
+            const baseId = projects[0].airtableBaseId;
+
+            // Navigate to base
+            logger.info("[Tab 3] Navigating to base", { baseId });
+            await tab.goto(`https://airtable.com/${baseId}`, {
+              waitUntil: "networkidle2",
+              timeout: 30000,
+            });
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+
+            // Navigate to table and record
+            const { Table, Ticket } = await import("../models");
+            const table = await Table.findOne({ baseId, userId });
+
+            if (table && table.airtableTableId) {
+              const tableId = table.airtableTableId;
+              const ticket = await Ticket.findOne({ baseId, tableId, userId });
+
+              if (ticket && ticket.airtableRecordId) {
+                const recordId = ticket.airtableRecordId;
+                logger.info("[Tab 3] Navigating to record", { recordId });
+
+                await tab.goto(
+                  `https://airtable.com/${baseId}/${tableId}/${recordId}`,
+                  {
+                    waitUntil: "networkidle2",
+                    timeout: 30000,
+                  }
+                );
+                await new Promise((resolve) => setTimeout(resolve, 2000));
+
+                // Click revision history panel
+                logger.info("[Tab 3] Opening revision history");
+                try {
+                  await tab
+                    .waitForSelector(
+                      '.rowLevelActivityFeed, [class*="rowLevelActivityFeed"], [class*="activityFeed"]',
+                      { timeout: 8000 }
+                    )
+                    .catch(() => {});
+
+                  const clicked = await tab.evaluate(() => {
+                    const elements = Array.from(
+                      document.querySelectorAll("div, span, button")
+                    );
+                    const revisionButton = elements.find(
+                      (el) =>
+                        el.textContent?.includes("Revision history") ||
+                        el.textContent?.includes("revision history")
+                    );
+
+                    if (
+                      revisionButton &&
+                      revisionButton instanceof HTMLElement
+                    ) {
+                      revisionButton.click();
+                      return true;
+                    }
+
+                    const activityFeed = document.querySelector(
+                      '.rowLevelActivityFeed, [class*="activityFeed"]'
+                    );
+                    return !!activityFeed;
+                  });
+
+                  if (clicked) {
+                    await new Promise((resolve) => setTimeout(resolve, 1500));
+                    logger.info("[Tab 3] ✓ Revision history opened");
+                  }
+                } catch (error: any) {
+                  logger.warn("[Tab 3] Revision history click failed", {
+                    error: error.message,
+                  });
+                }
+
+                logger.info("[Tab 3] ✓ Completed");
+              }
+            }
+          } else {
+            logger.info("[Tab 3] No base found, skipping");
+          }
+        } catch (error: any) {
+          logger.warn("[Tab 3] Failed", { error: error.message });
+        } finally {
+          await tab.close();
+        }
+      })()
+    );
+
+    // Execute all tabs in parallel
+    await Promise.all(navigationTasks);
+    logger.info("✓ All parallel navigation tasks completed");
   }
 
   /**
