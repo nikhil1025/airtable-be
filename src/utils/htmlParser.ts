@@ -1,6 +1,6 @@
 import * as cheerio from "cheerio";
 import { RevisionChange } from "../types";
-import { logger } from "../utils/errors";
+import { logger } from "./errors";
 
 /**
  * Parses HTML response from /readRowActivitiesAndComments endpoint

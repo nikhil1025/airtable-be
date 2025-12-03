@@ -48,9 +48,9 @@ export class MFAAuthService {
     try {
       logger.info("Initiating MFA login", { email, userId, baseId });
 
-      // Launch headless browser
+      // Launch headless browser (runs in background, not visible)
       browser = await puppeteer.launch({
-        headless: false, // TEMPORARILY SET TO FALSE FOR DEBUGGING
+        headless: true,
         args: [
           "--no-sandbox",
           "--disable-setuid-sandbox",
@@ -240,9 +240,163 @@ export class MFAAuthService {
             "MFA code required. Please enter the code from your authenticator app.",
         };
       } else {
-        // No MFA - extract cookies directly
-        logger.info("No MFA required - extracting cookies");
+        // No MFA - navigate to multiple pages and extract cookies
+        logger.info(
+          "No MFA required - navigating to pages to collect all cookies"
+        );
 
+        // Navigate to home page
+        logger.info("Navigating to home page");
+        await page.goto("https://airtable.com/", {
+          waitUntil: "networkidle2",
+          timeout: 30000,
+        });
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
+        // Navigate to workspace page
+        logger.info("Navigating to workspace page");
+        try {
+          await page.goto("https://airtable.com/workspace", {
+            waitUntil: "networkidle2",
+            timeout: 30000,
+          });
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        } catch (error: any) {
+          logger.warn("Failed to navigate to workspace page, continuing", {
+            error: error.message,
+          });
+        }
+
+        // Try to navigate to base, table, and record if available
+        try {
+          const projects = await Project.find({ userId });
+          if (projects.length > 0 && projects[0].airtableBaseId) {
+            const baseId = projects[0].airtableBaseId;
+            logger.info("Navigating to base page", { baseId });
+            await page.goto(`https://airtable.com/${baseId}`, {
+              waitUntil: "networkidle2",
+              timeout: 30000,
+            });
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+
+            // CRITICAL: Navigate to table and record to get record-level cookies
+            const { Table, Ticket } = await import("../models");
+
+            try {
+              const table = await Table.findOne({ baseId, userId });
+
+              if (table && table.airtableTableId) {
+                const tableId = table.airtableTableId;
+                logger.info("Navigating to table view", { tableId });
+
+                await page.goto(`https://airtable.com/${baseId}/${tableId}`, {
+                  waitUntil: "networkidle2",
+                  timeout: 30000,
+                });
+                await new Promise((resolve) => setTimeout(resolve, 2000));
+
+                // Open a specific record
+                const ticket = await Ticket.findOne({
+                  baseId,
+                  tableId,
+                  userId,
+                });
+
+                if (ticket && ticket.airtableRecordId) {
+                  const recordId = ticket.airtableRecordId;
+                  logger.info("Navigating to record view", { recordId });
+
+                  await page.goto(
+                    `https://airtable.com/${baseId}/${tableId}/${recordId}`,
+                    {
+                      waitUntil: "networkidle2",
+                      timeout: 30000,
+                    }
+                  );
+                  await new Promise((resolve) => setTimeout(resolve, 3000));
+                  logger.info("✓ Record page loaded!");
+
+                  // CRITICAL: Click revision history panel to trigger ALL cookies
+                  logger.info("Opening revision history panel...");
+                  try {
+                    // Wait for revision history panel to be present
+                    await page
+                      .waitForSelector(
+                        '.rowLevelActivityFeed, [class*="rowLevelActivityFeed"], [class*="activityFeed"]',
+                        {
+                          timeout: 10000,
+                        }
+                      )
+                      .catch(() => {
+                        logger.info(
+                          "Revision history panel selector not found, trying alternative approach"
+                        );
+                      });
+
+                    // Click on revision history to ensure it's expanded and cookies are triggered
+                    const clicked = await page.evaluate(() => {
+                      // Look for "Revision history" text or activity feed elements
+                      const revisionElements = Array.from(
+                        document.querySelectorAll("div, span, button")
+                      );
+                      const revisionButton = revisionElements.find(
+                        (el) =>
+                          el.textContent?.includes("Revision history") ||
+                          el.textContent?.includes("revision history")
+                      );
+
+                      if (
+                        revisionButton &&
+                        revisionButton instanceof HTMLElement
+                      ) {
+                        revisionButton.click();
+                        console.log("✓ Clicked revision history button");
+                        return true;
+                      }
+
+                      // Alternative: Check if revision history panel is already visible
+                      const activityFeed = document.querySelector(
+                        '.rowLevelActivityFeed, [class*="activityFeed"]'
+                      );
+                      if (activityFeed) {
+                        console.log("✓ Revision history panel already visible");
+                        return true;
+                      }
+
+                      console.log("Could not find revision history button");
+                      return false;
+                    });
+
+                    if (clicked) {
+                      await new Promise((resolve) => setTimeout(resolve, 2000));
+                      logger.info(
+                        "✓ Revision history panel opened - all cookies captured!"
+                      );
+                    } else {
+                      logger.warn(
+                        "Could not click revision history panel, but continuing"
+                      );
+                    }
+                  } catch (revisionError: any) {
+                    logger.warn("Failed to open revision history panel", {
+                      error: revisionError.message,
+                    });
+                  }
+                }
+              }
+            } catch (tableRecordError: any) {
+              logger.info("Could not navigate to table/record", {
+                error: tableRecordError.message,
+              });
+            }
+          }
+        } catch (error: any) {
+          logger.warn("Could not navigate to base/table/record pages", {
+            error: error.message,
+          });
+        }
+
+        logger.info("Extracting cookies from all visited pages");
         const cookiesData = await this.extractCookies(page);
         await this.saveCookies(userId, cookiesData);
 
@@ -462,33 +616,154 @@ export class MFAAuthService {
           await new Promise((resolve) => setTimeout(resolve, 3000));
           logger.info("Successfully navigated to base page");
 
-          // Try to navigate to a table view within the base to get table-level cookies
-          try {
-            logger.info("Attempting to navigate to first table in base");
-            // Wait for the base to load and try to get the first table
-            await page
-              .waitForSelector(
-                '[data-tutorial-selector-id="firstTableButton"], .table-list a',
-                {
-                  timeout: 5000,
-                }
-              )
-              .catch(() => {
-                logger.info("Table selector not found, continuing");
-              });
+          // CRITICAL: Navigate to table and record to get record-level cookies
+          // This is essential for record preview and revision history extraction
+          const { Table, Ticket } = await import("../models");
 
-            // Try to click the first table if available
-            const firstTable = await page.$(
-              '[data-tutorial-selector-id="firstTableButton"], .table-list a'
-            );
-            if (firstTable) {
-              await firstTable.click();
+          try {
+            // Get the first table for this base
+            const table = await Table.findOne({ baseId, userId });
+
+            if (table && table.airtableTableId) {
+              const tableId = table.airtableTableId;
+              logger.info("Found table, navigating to table view", { tableId });
+
+              // Navigate to table view
+              await page.goto(`https://airtable.com/${baseId}/${tableId}`, {
+                waitUntil: "networkidle2",
+                timeout: 30000,
+              });
               await new Promise((resolve) => setTimeout(resolve, 3000));
-              logger.info("Navigated to first table view");
+              logger.info("Successfully navigated to table view");
+
+              // CRITICAL: Open a specific record to get record-preview cookies
+              const ticket = await Ticket.findOne({ baseId, tableId, userId });
+
+              if (ticket && ticket.airtableRecordId) {
+                const recordId = ticket.airtableRecordId;
+                logger.info("Found record, navigating to record view", {
+                  recordId,
+                });
+
+                // Navigate to specific record - THIS triggers record-level cookies
+                await page.goto(
+                  `https://airtable.com/${baseId}/${tableId}/${recordId}`,
+                  {
+                    waitUntil: "networkidle2",
+                    timeout: 30000,
+                  }
+                );
+                await new Promise((resolve) => setTimeout(resolve, 4000));
+                logger.info(
+                  "✓ Successfully navigated to record view - record page loaded!"
+                );
+
+                // Verify we're not redirected to login
+                const currentUrl = page.url();
+                if (!currentUrl.includes("/login")) {
+                  logger.info("✓ Record view authenticated successfully");
+
+                  // CRITICAL: Click revision history panel to trigger ALL cookies
+                  logger.info("Opening revision history panel...");
+                  try {
+                    // Wait for revision history panel to be present
+                    await page
+                      .waitForSelector(
+                        '.rowLevelActivityFeed, [class*="rowLevelActivityFeed"], [class*="activityFeed"]',
+                        {
+                          timeout: 10000,
+                        }
+                      )
+                      .catch(() => {
+                        logger.info(
+                          "Revision history panel selector not found, trying alternative approach"
+                        );
+                      });
+
+                    // Click on revision history to ensure it's expanded and cookies are triggered
+                    const clicked = await page.evaluate(() => {
+                      // Look for "Revision history" text or activity feed elements
+                      const revisionElements = Array.from(
+                        document.querySelectorAll("div, span, button")
+                      );
+                      const revisionButton = revisionElements.find(
+                        (el) =>
+                          el.textContent?.includes("Revision history") ||
+                          el.textContent?.includes("revision history")
+                      );
+
+                      if (
+                        revisionButton &&
+                        revisionButton instanceof HTMLElement
+                      ) {
+                        revisionButton.click();
+                        console.log("✓ Clicked revision history button");
+                        return true;
+                      }
+
+                      // Alternative: Check if revision history panel is already visible
+                      const activityFeed = document.querySelector(
+                        '.rowLevelActivityFeed, [class*="activityFeed"]'
+                      );
+                      if (activityFeed) {
+                        console.log("✓ Revision history panel already visible");
+                        return true;
+                      }
+
+                      console.log("Could not find revision history button");
+                      return false;
+                    });
+
+                    if (clicked) {
+                      await new Promise((resolve) => setTimeout(resolve, 2000));
+                      logger.info(
+                        "✓ Revision history panel opened - all cookies captured!"
+                      );
+                    } else {
+                      logger.warn(
+                        "Could not click revision history panel, but continuing"
+                      );
+                    }
+                  } catch (revisionError: any) {
+                    logger.warn("Failed to open revision history panel", {
+                      error: revisionError.message,
+                    });
+                  }
+                } else {
+                  logger.warn("Record navigation redirected to login");
+                }
+              } else {
+                logger.info(
+                  "No tickets found for table, skipping record navigation"
+                );
+              }
+            } else {
+              logger.info("No tables found for base, trying table selector");
+
+              // Fallback: Try to click the first table in the base UI
+              await page
+                .waitForSelector(
+                  '[data-tutorial-selector-id="firstTableButton"], .table-list a',
+                  {
+                    timeout: 5000,
+                  }
+                )
+                .catch(() => {
+                  logger.info("Table selector not found");
+                });
+
+              const firstTable = await page.$(
+                '[data-tutorial-selector-id="firstTableButton"], .table-list a'
+              );
+              if (firstTable) {
+                await firstTable.click();
+                await new Promise((resolve) => setTimeout(resolve, 3000));
+                logger.info("Clicked first table in UI");
+              }
             }
           } catch (tableError: any) {
             logger.info(
-              "Could not navigate to table view, base-level cookies should be sufficient",
+              "Could not navigate to table/record, continuing with base cookies",
               {
                 error: tableError.message,
               }
@@ -600,42 +875,165 @@ export class MFAAuthService {
   }
 
   /**
-   * Extract cookies and localStorage
+   * Extract cookies, localStorage, and access token
+   * Comprehensive extraction that matches the src implementation
    */
   private async extractCookies(page: Page): Promise<any> {
-    const cookies = await page.cookies();
+    logger.info("Starting comprehensive cookie and data extraction");
 
+    // Extract ALL cookies from all domains
+    const cookies = await page.cookies();
+    logger.info("Extracted cookies", {
+      count: cookies.length,
+      cookieNames: cookies.map((c) => c.name),
+    });
+
+    // Extract localStorage items
     const localStorage = await page.evaluate(() => {
       const items: any = {};
-      for (let i = 0; i < window.localStorage.length; i++) {
-        const key = window.localStorage.key(i);
+      const ls = (window as any).localStorage;
+      for (let i = 0; i < ls.length; i++) {
+        const key = ls.key(i);
         if (key) {
-          items[key] = window.localStorage.getItem(key);
+          items[key] = ls.getItem(key) || "";
         }
       }
       return items;
     });
 
-    return { cookies, localStorage };
+    logger.info("Extracted localStorage", {
+      count: Object.keys(localStorage).length,
+      keys: Object.keys(localStorage),
+    });
+
+    // Try to extract API access token from the authenticated session
+    logger.info("Attempting to extract API access token");
+    let accessToken: string | null = null;
+
+    try {
+      // Method 1: Try to find access token in localStorage
+      for (const [key, value] of Object.entries(localStorage)) {
+        if (
+          key.includes("token") ||
+          key.includes("auth") ||
+          key.includes("access")
+        ) {
+          logger.info("Found potential token in localStorage", { key });
+          try {
+            const parsed = JSON.parse(value as string);
+            if (parsed.access_token || parsed.accessToken) {
+              accessToken = parsed.access_token || parsed.accessToken;
+              logger.info("✓ Found access token in localStorage");
+              break;
+            }
+          } catch (e) {
+            // Not JSON, check if it's a direct token
+            const val = value as string;
+            if (
+              val.startsWith("pat") ||
+              val.startsWith("key") ||
+              val.length > 50
+            ) {
+              accessToken = val;
+              logger.info("✓ Found potential direct access token");
+              break;
+            }
+          }
+        }
+      }
+
+      // Method 2: Try to extract token from page context
+      if (!accessToken) {
+        logger.info(
+          "No token in localStorage, trying to extract from page context"
+        );
+
+        accessToken = await page.evaluate(() => {
+          try {
+            const win = window as any;
+            for (const prop in win) {
+              if (
+                typeof win[prop] === "string" &&
+                (prop.toLowerCase().includes("token") ||
+                  prop.toLowerCase().includes("auth")) &&
+                win[prop].length > 20
+              ) {
+                return win[prop];
+              }
+            }
+            return null;
+          } catch (error) {
+            return null;
+          }
+        });
+
+        if (accessToken) {
+          logger.info("✓ Extracted token from page context");
+        }
+      }
+    } catch (error: any) {
+      logger.warn("Error extracting access token", { error: error.message });
+    }
+
+    if (!accessToken) {
+      logger.info(
+        "Could not extract API access token - will rely on cookie-based auth"
+      );
+    }
+
+    // Return full cookie objects with all properties for proper restoration
+    return {
+      cookies: cookies.map((c: any) => ({
+        name: c.name,
+        value: c.value,
+        domain: c.domain,
+        path: c.path,
+        expires: c.expires,
+        httpOnly: c.httpOnly,
+        secure: c.secure,
+        sameSite: c.sameSite,
+      })),
+      localStorage,
+      accessToken: accessToken || null,
+    };
   }
 
   /**
-   * Save cookies to database
+   * Save cookies, localStorage, and accessToken to database
    */
   private async saveCookies(userId: string, cookiesData: any): Promise<void> {
     const cookieString = JSON.stringify(cookiesData.cookies);
     const encryptedCookies = encrypt(cookieString);
 
-    await AirtableConnection.findOneAndUpdate(
-      { userId },
-      {
-        cookies: encryptedCookies,
-        lastUpdated: new Date(),
-      },
-      { upsert: true }
-    );
+    // Encrypt and store localStorage
+    const localStorageString = JSON.stringify(cookiesData.localStorage);
+    const encryptedLocalStorage = encrypt(localStorageString);
 
-    logger.info("Cookies saved to database", { userId });
+    // Encrypt and store access token if available
+    let encryptedAccessToken = null;
+    if (cookiesData.accessToken) {
+      encryptedAccessToken = encrypt(cookiesData.accessToken);
+      logger.info("Access token extracted and will be stored", { userId });
+    }
+
+    const updateData: any = {
+      cookies: encryptedCookies,
+      localStorage: encryptedLocalStorage,
+      scrapedAccessToken: encryptedAccessToken,
+      cookiesValidUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+      lastUpdated: new Date(),
+    };
+
+    await AirtableConnection.findOneAndUpdate({ userId }, updateData, {
+      upsert: true,
+    });
+
+    logger.info("Cookies, localStorage, and accessToken saved to database", {
+      userId,
+      cookieCount: cookiesData.cookies.length,
+      localStorageCount: Object.keys(cookiesData.localStorage).length,
+      hasAccessToken: !!cookiesData.accessToken,
+    });
   }
 }
 

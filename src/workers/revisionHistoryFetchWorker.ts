@@ -325,6 +325,17 @@ async function fetchRevisionHistory(
   cookies: string,
   applicationId: string
 ): Promise<any> {
+  // CRITICAL: Parse cookies from JSON string and convert to HTTP Cookie header format
+  // Cookies are stored as JSON array: [{name: "x", value: "y"}, ...]
+  // But HTTP Cookie header needs: "x=y; a=b; ..."
+  const cookiesArray = JSON.parse(cookies);
+  const cookieHeader = cookiesArray
+    .map(
+      (cookie: { name: string; value: string }) =>
+        `${cookie.name}=${cookie.value}`
+    )
+    .join("; ");
+
   const url = `https://airtable.com/v0.3/row/${recordId}/readRowActivitiesAndComments`;
 
   const params = {
@@ -343,7 +354,7 @@ async function fetchRevisionHistory(
     "accept-encoding": "gzip, deflate, br, zstd",
     "accept-language": "en-GB,en-US;q=0.9,en;q=0.8",
     "cache-control": "no-cache",
-    cookie: cookies,
+    cookie: cookieHeader,
     pragma: "no-cache",
     referer: `https://airtable.com/${applicationId}/`,
     "sec-ch-ua":

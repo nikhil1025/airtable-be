@@ -137,12 +137,34 @@ export class UsersFetchService {
    * Get common headers for Airtable API requests
    */
   private getAirtableHeaders(workspaceId?: string): Record<string, string> {
+    // CRITICAL: Convert cookies from JSON array to HTTP Cookie header format
+    // Cookies are stored as JSON string: "[{name: 'x', value: 'y'}, ...]"
+    // But HTTP Cookie header needs: "x=y; a=b; ..."
+    let cookieHeader = "";
+    if (this.cookies) {
+      try {
+        const cookiesArray = JSON.parse(this.cookies);
+        cookieHeader = cookiesArray
+          .map(
+            (cookie: { name: string; value: string }) =>
+              `${cookie.name}=${cookie.value}`
+          )
+          .join("; ");
+      } catch (error) {
+        console.error(
+          "[UsersFetchService] Failed to parse cookies, using as-is:",
+          error
+        );
+        cookieHeader = this.cookies; // Fallback to raw string if not JSON
+      }
+    }
+
     const headers: Record<string, string> = {
       accept: "*/*",
       "accept-encoding": "gzip, deflate, br, zstd",
       "accept-language": "en-GB,en-US;q=0.9,en;q=0.8",
       "cache-control": "no-cache",
-      cookie: this.cookies || "",
+      cookie: cookieHeader,
       pragma: "no-cache",
       "sec-ch-ua":
         '"Chromium";v="142", "Google Chrome";v="142", "Not_A Brand";v="99"',
