@@ -4,16 +4,6 @@ import { authSessionManager } from "../services/AuthSessionManager";
 import { mfaAuthService } from "../services/MFAAuthService";
 import { logger } from "../utils/errors";
 
-/**
- * MFA AUTHENTICATION CONTROLLER
- *
- * Handles MFA authentication endpoints for headless Puppeteer login
- */
-
-/**
- * POST /api/airtable/auth/initiate-login
- * Step 1: Start login with email and password
- */
 export const initiateLogin = async (req: Request, res: Response) => {
   try {
     const { email, password, userId } = req.body;
@@ -88,10 +78,6 @@ export const initiateLogin = async (req: Request, res: Response) => {
   }
 };
 
-/**
- * POST /api/airtable/auth/submit-mfa
- * Step 2: Submit MFA code
- */
 export const submitMFA = async (req: Request, res: Response) => {
   try {
     const { sessionId, mfaCode } = req.body;
@@ -124,10 +110,6 @@ export const submitMFA = async (req: Request, res: Response) => {
   }
 };
 
-/**
- * POST /api/airtable/auth/cancel-session
- * Cancel an active authentication session
- */
 export const cancelSession = async (req: Request, res: Response) => {
   try {
     const { sessionId } = req.body;
@@ -159,10 +141,6 @@ export const cancelSession = async (req: Request, res: Response) => {
   }
 };
 
-/**
- * GET /api/airtable/auth/session-status/:sessionId
- * Check if a session is still active
- */
 export const getSessionStatus = async (req: Request, res: Response) => {
   try {
     const { sessionId } = req.params;

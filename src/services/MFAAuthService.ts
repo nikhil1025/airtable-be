@@ -4,17 +4,6 @@ import { encrypt } from "../utils/encryption";
 import { logger } from "../utils/errors";
 import { authSessionManager } from "./AuthSessionManager";
 
-/**
- * MFA AUTHENTICATION SERVICE
- *
- * Handles headless Puppeteer-based MFA authentication for Airtable
- * Features:
- * - Headless browser automation
- * - Direct input (instant, not letter-by-letter)
- * - Session-based MFA flow
- * - Cookie extraction and storage
- */
-
 export interface InitiateLoginResult {
   success: boolean;
   sessionId?: string;
@@ -32,10 +21,6 @@ export interface SubmitMFAResult {
 }
 
 export class MFAAuthService {
-  /**
-   * Step 1: Initiate login with email and password
-   * Returns sessionId if MFA is required
-   */
   async initiateLogin(
     email: string,
     password: string,
@@ -150,8 +135,8 @@ export class MFAAuthService {
         }
       }
 
-      // STEP 1: Enter email and click Continue
-      logger.info("Step 1: Waiting for email input");
+      // Enter email and click Continue
+      logger.info("Waiting for email input");
       await page.waitForSelector('input[type="email"], input[name="email"]', {
         visible: true,
         timeout: 10000,
@@ -184,8 +169,8 @@ export class MFAAuthService {
       logger.info("Waiting for password page to load");
       await new Promise((resolve) => setTimeout(resolve, 3000));
 
-      // STEP 2: Enter password and submit
-      logger.info("Step 2: Waiting for password input");
+      // Enter password and submit
+      logger.info("Waiting for password input");
       await page.waitForSelector(
         'input[type="password"], input[name="password"]',
         {
@@ -316,7 +301,7 @@ export class MFAAuthService {
                   await new Promise((resolve) => setTimeout(resolve, 3000));
                   logger.info("✓ Record page loaded!");
 
-                  // CRITICAL: Click revision history panel to trigger ALL cookies
+                  // Click revision history panel to trigger ALL cookies
                   logger.info("Opening revision history panel...");
                   try {
                     // Wait for revision history panel to be present
@@ -429,9 +414,6 @@ export class MFAAuthService {
     }
   }
 
-  /**
-   * Step 2: Submit MFA code
-   */
   async submitMFA(
     sessionId: string,
     mfaCode: string
@@ -541,9 +523,6 @@ export class MFAAuthService {
     }
   }
 
-  /**
-   * Check if MFA is required on the current page
-   */
   private async checkIfMFARequired(page: Page): Promise<boolean> {
     try {
       // Check for MFA input field
@@ -566,9 +545,6 @@ export class MFAAuthService {
     }
   }
 
-  /**
-   * Check if login was successful
-   */
   private async checkLoginSuccess(page: Page): Promise<boolean> {
     try {
       const url = page.url();
@@ -580,10 +556,6 @@ export class MFAAuthService {
     }
   }
 
-  /**
-   * Extract cookies, localStorage, and access token
-   * Comprehensive extraction that matches the src implementation
-   */
   private async extractCookies(page: Page): Promise<any> {
     logger.info("Starting comprehensive cookie and data extraction");
 
@@ -617,7 +589,7 @@ export class MFAAuthService {
     let accessToken: string | null = null;
 
     try {
-      // Method 1: Try to find access token in localStorage
+      // Try to find access token in localStorage
       for (const [key, value] of Object.entries(localStorage)) {
         if (
           key.includes("token") ||
@@ -648,7 +620,7 @@ export class MFAAuthService {
         }
       }
 
-      // Method 2: Try to extract token from page context
+      // Try to extract token from page context
       if (!accessToken) {
         logger.info(
           "No token in localStorage, trying to extract from page context"
@@ -704,10 +676,6 @@ export class MFAAuthService {
     };
   }
 
-  /**
-   * Parallel Navigation Helper - Opens multiple tabs to navigate simultaneously
-   * This dramatically speeds up cookie collection
-   */
   private async navigateInParallel(
     browser: Browser,
     userId: string
@@ -887,9 +855,6 @@ export class MFAAuthService {
     logger.info("✓ All parallel navigation tasks completed");
   }
 
-  /**
-   * Save cookies, localStorage, and accessToken to database
-   */
   private async saveCookies(userId: string, cookiesData: any): Promise<void> {
     const cookieString = JSON.stringify(cookiesData.cookies);
     const encryptedCookies = encrypt(cookieString);
@@ -926,5 +891,4 @@ export class MFAAuthService {
   }
 }
 
-// Singleton instance
 export const mfaAuthService = new MFAAuthService();

@@ -63,9 +63,6 @@ export class RateLimitError extends AppError {
   }
 }
 
-/**
- * Handles Airtable API errors
- */
 export function handleAirtableError(error: unknown): AppError {
   if (error instanceof AppError) {
     return error;
@@ -115,9 +112,6 @@ export function handleAirtableError(error: unknown): AppError {
   return new AirtableError(message, status, { type: errorType });
 }
 
-/**
- * Handles scraping errors
- */
 export function handleScrapingError(error: unknown): AppError {
   if (error instanceof AppError) {
     return error;
@@ -129,9 +123,6 @@ export function handleScrapingError(error: unknown): AppError {
   return new AppError(message, 500, "SCRAPING_ERROR");
 }
 
-/**
- * Sends error response
- */
 export function sendErrorResponse(res: Response, error: unknown): Response {
   if (error instanceof AppError) {
     const response: ApiResponse = {
@@ -153,9 +144,6 @@ export function sendErrorResponse(res: Response, error: unknown): Response {
   return res.status(500).json(response);
 }
 
-/**
- * Sends success response
- */
 export function sendSuccessResponse<T>(
   res: Response,
   data: T,
@@ -170,9 +158,6 @@ export function sendSuccessResponse<T>(
   return res.status(statusCode).json(response);
 }
 
-/**
- * Logger utility with colors
- */
 const colors = {
   reset: "\x1b[0m",
   bright: "\x1b[1m",

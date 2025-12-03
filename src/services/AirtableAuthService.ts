@@ -28,9 +28,6 @@ export class AirtableAuthService {
     }
   }
 
-  /**
-   * Generates PKCE code verifier and challenge
-   */
   private generatePKCE(): { codeVerifier: string; codeChallenge: string } {
     // Generate random code verifier (43-128 characters)
     const codeVerifier = crypto.randomBytes(32).toString("base64url");
@@ -44,9 +41,6 @@ export class AirtableAuthService {
     return { codeVerifier, codeChallenge };
   }
 
-  /**
-   * Initiates OAuth flow and returns authorization URL
-   */
   async initiateOAuth(userId: string): Promise<string> {
     try {
       const state = crypto.randomBytes(32).toString("hex");
@@ -83,9 +77,6 @@ export class AirtableAuthService {
     }
   }
 
-  /**
-   * Handles OAuth callback and exchanges code for tokens
-   */
   async handleCallback(code: string, state: string): Promise<void> {
     try {
       // Extract userId from state
@@ -124,9 +115,6 @@ export class AirtableAuthService {
     }
   }
 
-  /**
-   * Exchanges authorization code for access and refresh tokens
-   */
   private async exchangeCodeForTokens(
     code: string,
     codeVerifier: string
@@ -178,9 +166,6 @@ export class AirtableAuthService {
     }
   }
 
-  /**
-   * Refreshes access token using refresh token
-   */
   async refreshAccessToken(userId: string): Promise<string> {
     try {
       const connection = await AirtableConnection.findOne({ userId });
@@ -250,9 +235,6 @@ export class AirtableAuthService {
     }
   }
 
-  /**
-   * Gets a valid access token (refreshes if needed)
-   */
   async getValidAccessToken(userId: string): Promise<string> {
     try {
       const connection = await AirtableConnection.findOne({ userId });
@@ -287,8 +269,6 @@ export class AirtableAuthService {
       // Decrypt access token
       const accessToken = decrypt(connection.accessToken);
 
-      // Try to use current token first
-      // If it fails, refresh it
       try {
         // Validate token by making a test request
         await this.validateToken(accessToken);
@@ -303,9 +283,6 @@ export class AirtableAuthService {
     }
   }
 
-  /**
-   * Validates access token by making a test request
-   */
   private async validateToken(accessToken: string): Promise<void> {
     try {
       await axios.get("https://api.airtable.com/v0/meta/bases", {
@@ -317,21 +294,15 @@ export class AirtableAuthService {
       });
     } catch (error) {
       const err = error as { response?: { status?: number } };
-      // Only throw AuthenticationError for 401, treat other errors as network issues
-      // and let the actual API call handle them
       if (err.response?.status === 401) {
         throw new AuthenticationError("Token is invalid");
       }
-      // For network errors, consider token valid and let the actual request handle it
       logger.warn("Token validation request failed, but not due to 401", {
         error,
       });
     }
   }
 
-  /**
-   * Stores encrypted tokens in database
-   */
   private async storeTokens(
     userId: string,
     accessToken: string,
@@ -359,9 +330,6 @@ export class AirtableAuthService {
     }
   }
 
-  /**
-   * Checks if user has a valid connection
-   */
   async hasValidConnection(userId: string): Promise<boolean> {
     try {
       const connection = await AirtableConnection.findOne({ userId });
@@ -372,9 +340,6 @@ export class AirtableAuthService {
     }
   }
 
-  /**
-   * Performs login with Puppeteer and extracts ALL cookies
-   */
   async performLoginAndExtractCookies(
     email: string,
     password: string,
@@ -456,9 +421,6 @@ export class AirtableAuthService {
     }
   }
 
-  /**
-   * Stores cookies and localStorage data in database
-   */
   private async storeCookiesAndData(
     userId: string,
     cookies: any[],

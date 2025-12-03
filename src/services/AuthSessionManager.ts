@@ -2,17 +2,6 @@ import { Browser, Page } from "puppeteer";
 import { v4 as uuidv4 } from "uuid";
 import { logger } from "../utils/errors";
 
-/**
- * AUTH SESSION MANAGER
- *
- * Manages in-memory Puppeteer browser sessions for MFA authentication
- * Features:
- * - Session-based browser storage
- * - Auto-cleanup of expired sessions
- * - Memory leak prevention
- * - Concurrent user support
- */
-
 export interface AuthSession {
   sessionId: string;
   browser: Browser;
@@ -39,9 +28,6 @@ export class AuthSessionManager {
     });
   }
 
-  /**
-   * Create a new authentication session
-   */
   createSession(browser: Browser, page: Page, userId: string): string {
     const sessionId = uuidv4();
     const now = new Date();
@@ -68,9 +54,6 @@ export class AuthSessionManager {
     return sessionId;
   }
 
-  /**
-   * Get an existing session
-   */
   getSession(sessionId: string): AuthSession | null {
     const session = this.sessions.get(sessionId);
 
@@ -89,9 +72,6 @@ export class AuthSessionManager {
     return session;
   }
 
-  /**
-   * Close and remove a session
-   */
   async closeSession(sessionId: string): Promise<void> {
     const session = this.sessions.get(sessionId);
 
@@ -116,9 +96,6 @@ export class AuthSessionManager {
     });
   }
 
-  /**
-   * Cleanup expired sessions
-   */
   private async cleanupExpiredSessions(): Promise<void> {
     const now = new Date();
     const expiredSessions: string[] = [];
@@ -141,16 +118,10 @@ export class AuthSessionManager {
     }
   }
 
-  /**
-   * Get active session count
-   */
   getActiveSessionCount(): number {
     return this.sessions.size;
   }
 
-  /**
-   * Close all sessions and stop cleanup timer
-   */
   async shutdown(): Promise<void> {
     logger.info("Shutting down AuthSessionManager", {
       activeSessions: this.sessions.size,

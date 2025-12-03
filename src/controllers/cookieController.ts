@@ -7,11 +7,6 @@ import {
   ValidationError,
 } from "../utils/errors";
 
-/**
- * POST /api/airtable/cookies/auto-retrieve
- * AUTOMATIC COOKIE EXTRACTION - COMPULSORY METHOD
- * Automatically retrieve cookies from Airtable using Puppeteer automation
- */
 export async function autoRetrieveCookies(
   req: Request,
   res: Response
@@ -42,10 +37,6 @@ export async function autoRetrieveCookies(
   }
 }
 
-/**
- * POST /api/airtable/cookies/validate
- * Checks if stored cookies are valid
- */
 export async function validateCookies(
   req: Request,
   res: Response
@@ -76,11 +67,6 @@ export async function validateCookies(
   }
 }
 
-/**
- * GET /api/airtable/cookies/get/:userId
- * TEST ONLY: Get raw cookie values for debugging
- * TODO: Remove after testing
- */
 export async function getCookiesForTesting(
   req: Request,
   res: Response
@@ -123,10 +109,6 @@ export async function getCookiesForTesting(
   }
 }
 
-/**
- * POST /api/airtable/cookies/refresh
- * Refreshes cookies by automatically retrieving them again
- */
 export async function refreshCookies(
   req: Request,
   res: Response
@@ -157,10 +139,6 @@ export async function refreshCookies(
   }
 }
 
-/**
- * POST /api/airtable/cookies/set-token
- * Manually set access token extracted from browser
- */
 export async function setAccessToken(
   req: Request,
   res: Response

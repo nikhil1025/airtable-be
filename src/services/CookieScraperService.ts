@@ -10,9 +10,6 @@ export class CookieScraperService {
   private static browser: Browser | null = null;
   private static workerPool: WorkerPool | null = null;
 
-  /**
-   * Get or create worker pool for Puppeteer operations
-   */
   private static getWorkerPool(): WorkerPool {
     if (!this.workerPool) {
       const workerFile = path.join(__dirname, "../workers/puppeteerWorker.js");
@@ -29,9 +26,6 @@ export class CookieScraperService {
     return this.workerPool;
   }
 
-  /**
-   * Terminate worker pool on shutdown
-   */
   static async shutdownWorkerPool(): Promise<void> {
     if (this.workerPool) {
       await this.workerPool.terminate();
@@ -40,16 +34,10 @@ export class CookieScraperService {
     }
   }
 
-  /**
-   * Get worker pool (public accessor for other services)
-   */
   static getWorkerPoolInstance(): WorkerPool {
     return this.getWorkerPool();
   }
 
-  /**
-   * Get cookies from database as array format for Puppeteer
-   */
   static async getCookiesFromDB(userId: string): Promise<Array<any>> {
     const connection = await AirtableConnection.findOne({ userId });
 
@@ -72,8 +60,6 @@ export class CookieScraperService {
           path: cookie.path || "/",
         };
 
-        // __Host- prefixed cookies MUST NOT have a domain attribute
-        // They are bound to the exact hostname that set them
         if (!cookie.name.startsWith("__Host-")) {
           puppeteerCookie.domain = cookie.domain;
         }
@@ -88,7 +74,6 @@ export class CookieScraperService {
         return puppeteerCookie;
       });
     } catch (e) {
-      // Fallback: Parse cookie string format (old format)
       const cookieArray = cookiesStr.split("; ").map((cookie) => {
         const [name, value] = cookie.split("=");
         return {
@@ -102,9 +87,6 @@ export class CookieScraperService {
     }
   }
 
-  /**
-   * Get localStorage data from database
-   */
   static async getLocalStorageFromDB(
     userId: string
   ): Promise<Record<string, string>> {
@@ -124,19 +106,10 @@ export class CookieScraperService {
     }
   }
 
-  /**
-   * Helper function to wait/sleep
-   */
   private static async sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  /**
-   * AUTOMATIC COOKIE RETRIEVAL - WORKER THREAD VERSION
-   * Automatically retrieve cookies from Airtable using Puppeteer automation
-   * Runs in a separate worker thread for better performance
-   * Use this for production - it's faster and doesn't block the main thread
-   */
   static async automaticallyRetrieveCookiesWithWorker(
     email: string,
     password: string,
@@ -195,12 +168,6 @@ export class CookieScraperService {
     }
   }
 
-  /**
-   * AUTOMATIC COOKIE RETRIEVAL - COMPULSORY METHOD (Original Direct Version)
-   * Automatically retrieve cookies from Airtable using Puppeteer automation
-   * This extracts cookies without manual user intervention
-   * Note: For better performance, use automaticallyRetrieveCookiesWithWorker instead
-   */
   static async automaticallyRetrieveCookies(
     email: string,
     password: string,
@@ -250,8 +217,8 @@ export class CookieScraperService {
       await page.screenshot({ path: `/tmp/airtable-step1-${timestamp}.png` });
       logger.info("Initial page screenshot saved");
 
-      // STEP 1: Enter email and click Continue
-      logger.info("Step 1: Waiting for email input");
+      // Enter email and click Continue
+      logger.info("Waiting for email input");
       await page.waitForSelector('input[type="email"], input[name="email"]', {
         visible: true,
         timeout: 10000,
@@ -303,8 +270,8 @@ export class CookieScraperService {
       });
       logger.info("Password page screenshot saved");
 
-      // STEP 2: Enter password and submit
-      logger.info("Step 2: Waiting for password input");
+      // Enter password and submit
+      logger.info("Waiting for password input");
       await page.waitForSelector(
         'input[type="password"], input[name="password"]',
         {
@@ -446,9 +413,6 @@ export class CookieScraperService {
     }
   }
 
-  /**
-   * Store automatically retrieved cookies for a user
-   */
   static async storeAutomaticCookies(
     userId: string,
     email: string,
@@ -456,7 +420,7 @@ export class CookieScraperService {
     mfaCode?: string
   ): Promise<{ validUntil: Date }> {
     try {
-      // Automatically retrieve cookies using Puppeteer Worker Thread (non-blocking)
+      // Automatically retrieve cookies using Puppeteer Worker Thread
       logger.info("Using worker thread for cookie extraction", { userId });
       const result = await this.automaticallyRetrieveCookiesWithWorker(
         email,
@@ -526,9 +490,6 @@ export class CookieScraperService {
     }
   }
 
-  /**
-   * Validate stored cookies by making a test request to Airtable
-   */
   static async validateCookies(userId: string): Promise<boolean> {
     try {
       const connection = await AirtableConnection.findOne({ userId });
@@ -641,7 +602,7 @@ export class CookieScraperService {
         }
       }
 
-      // Test cookies by making request to actual workspace (more reliable than API)
+      // Test cookies by making request to actual workspace
       console.log(" Testing cookies against workspace page...");
 
       try {
@@ -722,9 +683,6 @@ export class CookieScraperService {
     }
   }
 
-  /**
-   * Refresh cookies by automatically retrieving them again
-   */
   static async refreshCookies(
     userId: string,
     email: string,
@@ -735,10 +693,6 @@ export class CookieScraperService {
     return this.storeAutomaticCookies(userId, email, password, mfaCode);
   }
 
-  /**
-   * Get valid cookies for making authenticated requests
-   * Automatically validates and refreshes if needed
-   */
   static async getValidCookies(userId: string): Promise<string> {
     const connection = await AirtableConnection.findOne({ userId });
 
@@ -769,9 +723,6 @@ export class CookieScraperService {
     return decrypt(connection.cookies);
   }
 
-  /**
-   * Cleanup: close browser instance
-   */
   static async cleanup(): Promise<void> {
     if (this.browser) {
       await this.browser.close();

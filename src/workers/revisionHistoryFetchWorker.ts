@@ -33,10 +33,6 @@ interface ParsedRevision {
   userId: string;
 }
 
-/**
- * Parse HTML from diffRowHtml to extract ALL field changes
- * Supports: select, foreignKey, asyncText, text, number, and more
- */
 function parseActivityHTML(
   activityId: string,
   activityData: {
@@ -317,17 +313,11 @@ function parseActivityHTML(
   return revisions;
 }
 
-/**
- * Fetch revision history for a single record using axios (NO PUPPETEER)
- */
 async function fetchRevisionHistory(
   recordId: string,
   cookies: string,
   applicationId: string
 ): Promise<any> {
-  // CRITICAL: Parse cookies from JSON string and convert to HTTP Cookie header format
-  // Cookies are stored as JSON array: [{name: "x", value: "y"}, ...]
-  // But HTTP Cookie header needs: "x=y; a=b; ..."
   const cookiesArray = JSON.parse(cookies);
   const cookieHeader = cookiesArray
     .map(
@@ -392,12 +382,6 @@ async function fetchRevisionHistory(
     throw error;
   }
 }
-
-/**
- * Worker thread main function - BATCH PROCESSING
- * Connects to MongoDB ONCE and processes all assigned tasks
- * NO PUPPETEER - Uses axios for direct HTTP requests
- */
 async function processBatch(data: WorkerData) {
   const { workerId, tasks } = data;
   const results: any[] = [];

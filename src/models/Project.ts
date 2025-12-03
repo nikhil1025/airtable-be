@@ -30,7 +30,6 @@ const ProjectSchema: Schema = new Schema(
   }
 );
 
-// Compound index for userId and airtableBaseId
 ProjectSchema.index({ userId: 1, airtableBaseId: 1 });
 
 export default mongoose.model<IProject>("Project", ProjectSchema);

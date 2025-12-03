@@ -3,9 +3,6 @@ import path from "path";
 import { Worker } from "worker_threads";
 import { logger } from "../utils/errors";
 
-/**
- * Worker Pool - Manages pool of worker threads for parallel processing
- */
 export class WorkerPool {
   private workers: Worker[] = [];
   private queue: Array<{
@@ -20,10 +17,8 @@ export class WorkerPool {
   }
 
   private initializePool(): void {
-    // Determine if we're running in development (ts-node) or production (compiled)
     let workerPath = path.resolve(__dirname, this.workerFile);
 
-    // If .js file doesn't exist, try .ts (development mode with ts-node)
     if (!fs.existsSync(workerPath) && workerPath.endsWith(".js")) {
       const tsPath = workerPath.replace(/\.js$/, ".ts");
       if (fs.existsSync(tsPath)) {

@@ -21,7 +21,7 @@ export async function bulkRevisionHistoryAutomation(
 
     console.log(`[INFO] User ID: ${userId}`);
 
-    console.log("\n STEP 1: Fetching all tickets from MongoDB");
+    console.log("\n Fetching all tickets from MongoDB");
     console.log("-".repeat(40));
 
     const tickets = await Ticket.find({ userId }).select(
@@ -45,7 +45,7 @@ export async function bulkRevisionHistoryAutomation(
     });
 
     console.log(
-      "\n STEP 2: Validating ALL authentication data (cookies + localStorage + session)"
+      "\n Validating ALL authentication data (cookies + localStorage + session)"
     );
     console.log("-".repeat(40));
 
@@ -65,7 +65,7 @@ export async function bulkRevisionHistoryAutomation(
 
     const { cookies, localStorage, sessionData } = authValidation;
 
-    console.log("\n STEP 3: Creating URL list with exact format");
+    console.log("\n Creating URL list with exact format");
     console.log("-".repeat(40));
 
     const urlList: Array<{
@@ -120,7 +120,7 @@ export async function bulkRevisionHistoryAutomation(
       console.log(`   URL: ${item.url.substring(0, 100)}...`);
     });
 
-    console.log("\n⚡ STEP 4: Processing revision history for all records");
+    console.log("\n⚡ Processing revision history for all records");
     console.log("-".repeat(40));
 
     const allRevisionHistory: RevisionChange[] = [];
@@ -199,7 +199,7 @@ export async function bulkRevisionHistoryAutomation(
       }
     }
 
-    console.log("\n STEP 6: Storing revision history in database");
+    console.log("\n Storing revision history in database");
     console.log("-".repeat(40));
 
     let savedCount = 0;
@@ -313,9 +313,6 @@ export async function bulkRevisionHistoryAutomation(
   }
 }
 
-/**
- * Parse revision history response and extract data in requested format
- */
 function parseRevisionHistoryResponse(
   responseData: any,
   recordId: string
@@ -423,9 +420,6 @@ function parseRevisionHistoryResponse(
   return revisions;
 }
 
-/**
- * Format field values based on type
- */
 function formatFieldValue(value: any, columnType: string): string {
   if (value === null || value === undefined) {
     return "";

@@ -3,20 +3,6 @@ import { RevisionHistory, Ticket } from "../models";
 import { RevisionHistoryFetchService } from "../services/RevisionHistoryFetchService";
 import { removeDuplicateRevisions } from "../utils/removeDuplicateRevisions";
 
-/**
- * REVISION HISTORY FETCH CONTROLLER
- *
- * Handles API requests to fetch and store revision histories for a user
- */
-
-/**
- * Fetch revision histories for a specific user
- *
- * GET /api/revision-history/fetch/:userId
- *
- * @param req - Request with userId in params
- * @param res - Response with array of all revision history records
- */
 export const fetchRevisionHistoriesForUser = async (
   req: Request,
   res: Response
@@ -132,14 +118,6 @@ export const fetchRevisionHistoriesForUser = async (
   }
 };
 
-/**
- * Get all revision histories for a user from database
- *
- * GET /api/revision-history/user/:userId
- *
- * @param req - Request with userId in params
- * @param res - Response with array of all revision history records
- */
 export const getRevisionHistoriesForUser = async (
   req: Request,
   res: Response
@@ -189,14 +167,6 @@ export const getRevisionHistoriesForUser = async (
   }
 };
 
-/**
- * Get all revision histories as flat array (no grouping)
- *
- * GET /api/revision-history/all/:userId
- *
- * @param req - Request with userId in params
- * @param res - Response with flat array of all revision history records
- */
 export const getAllRevisionsFlat = async (
   req: Request,
   res: Response
@@ -283,14 +253,6 @@ export const getAllRevisionsFlat = async (
   }
 };
 
-/**
- * Get revision history for a specific record
- *
- * GET /api/revision-history/record/:recordId
- *
- * @param req - Request with recordId in params
- * @param res - Response with array of revision history for that record
- */
 export const getRecordRevisions = async (
   req: Request,
   res: Response
@@ -380,14 +342,6 @@ export const getRecordRevisions = async (
   }
 };
 
-/**
- * Get revision histories by baseId and/or tableId
- *
- * GET /api/revision-history/filter
- *
- * @param req - Request with baseId and/or tableId in query params
- * @param res - Response with array of revision histories
- */
 export const getRevisionsByFilter = async (
   req: Request,
   res: Response
@@ -419,13 +373,12 @@ export const getRevisionsByFilter = async (
 
     let recordIds: string[] = [];
 
-    // Step 1: If filtering by baseId or tableId, find matching tickets first
     if (baseId || tableId) {
       const ticketFilter: any = { userId };
       if (baseId) ticketFilter.baseId = baseId;
       if (tableId) ticketFilter.tableId = tableId;
 
-      console.log(`📋 Finding tickets with filter:`, ticketFilter);
+      console.log(`Finding tickets with filter:`, ticketFilter);
 
       const tickets = await Ticket.find(ticketFilter)
         .select("airtableRecordId")
@@ -434,7 +387,7 @@ export const getRevisionsByFilter = async (
       recordIds = tickets.map((t) => t.airtableRecordId);
 
       console.log(
-        `✅ Found ${recordIds.length} tickets matching baseId/tableId filter`
+        `Found ${recordIds.length} tickets matching baseId/tableId filter`
       );
 
       if (recordIds.length === 0) {
@@ -461,7 +414,6 @@ export const getRevisionsByFilter = async (
       }
     }
 
-    // Step 2: Build query for revisions
     const queryFilter: any = { userId };
 
     if (recordIds.length > 0) {
@@ -470,7 +422,7 @@ export const getRevisionsByFilter = async (
     }
 
     console.log(
-      `🔎 Querying revisions with filter (showing first 100 chars):`,
+      `Querying revisions with filter (showing first 100 chars):`,
       JSON.stringify(queryFilter, null, 2).substring(0, 100)
     );
 
@@ -492,9 +444,8 @@ export const getRevisionsByFilter = async (
 
     const revisions = await query.lean();
 
-    console.log(`📦 Found ${revisions.length} revisions`);
+    console.log(`Found ${revisions.length} revisions`);
 
-    // Step 3: Enrich revisions with baseId and tableId by looking up tickets
     const uniqueIssueIds = [...new Set(revisions.map((r) => r.issueId))];
     const ticketLookup = await Ticket.find({
       airtableRecordId: { $in: uniqueIssueIds },
@@ -506,7 +457,7 @@ export const getRevisionsByFilter = async (
     const ticketMap = new Map(ticketLookup.map((t) => [t.airtableRecordId, t]));
 
     console.log(
-      `🔗 Enriching ${revisions.length} revisions with baseId/tableId from ${ticketLookup.length} tickets`
+      `Enriching ${revisions.length} revisions with baseId/tableId from ${ticketLookup.length} tickets`
     );
 
     // Get unique ticket count
@@ -522,7 +473,7 @@ export const getRevisionsByFilter = async (
     ).length;
 
     console.log(
-      `📊 Stats: Total=${totalChanges}, Status=${statusChanges}, Assignee=${assigneeChanges}, Tickets=${uniqueTickets.size}`
+      `Stats: Total=${totalChanges}, Status=${statusChanges}, Assignee=${assigneeChanges}, Tickets=${uniqueTickets.size}`
     );
 
     res.status(200).json({
@@ -569,14 +520,6 @@ export const getRevisionsByFilter = async (
   }
 };
 
-/**
- * Scrape revision history for a single record
- *
- * POST /api/revision-history/scrape/record
- *
- * @param req - Request with userId, recordId, baseId, tableId in body
- * @param res - Response with scraped revision history
- */
 export const scrapeSingleRecord = async (
   req: Request,
   res: Response
@@ -641,17 +584,6 @@ export const scrapeSingleRecord = async (
   }
 };
 
-/**
- * Clean up duplicate revision history records for a user
- *
- * POST /api/revision-history/cleanup/:userId
- *
- * Removes duplicate records based on matching newValue, oldValue, and createdDate.
- * Keeps only one record when duplicates are found.
- *
- * @param req - Request with userId in params
- * @param res - Response with cleanup statistics
- */
 export const cleanupDuplicates = async (
   req: Request,
   res: Response
@@ -700,19 +632,6 @@ export const cleanupDuplicates = async (
   }
 };
 
-/**
- * Sync (scrape + cleanup duplicates) revision history for a single record
- *
- * POST /api/revision-history/sync/record
- *
- * This endpoint:
- * 1. Scrapes revision history for the specific record
- * 2. Automatically cleans up duplicate revisions for that record
- * 3. Returns the cleaned revision history
- *
- * @param req - Request with userId, recordId, baseId, tableId in body
- * @param res - Response with synced and cleaned revision history
- */
 export const syncSingleRecord = async (
   req: Request,
   res: Response
@@ -737,9 +656,8 @@ export const syncSingleRecord = async (
     console.log(` Table ID: ${tableId}`);
     console.log(` Started at: ${new Date().toISOString()}\n`);
 
-    // Step 0: Delete existing revisions for this record to prevent duplicates
     console.log(`\n${"=".repeat(70)}`);
-    console.log(` STEP 0: REMOVING EXISTING REVISIONS`);
+    console.log(` REMOVING EXISTING REVISIONS`);
     console.log(`${"=".repeat(70)}\n`);
 
     const existingRevisions = await RevisionHistory.find({
@@ -761,11 +679,10 @@ export const syncSingleRecord = async (
       console.log(`✓ No existing revisions to delete\n`);
     }
 
-    // Step 1: Create service instance and scrape the record
     const service = new RevisionHistoryFetchService(userId);
 
     console.log(`\n${"=".repeat(70)}`);
-    console.log(` STEP 1: SCRAPING RECORD REVISION HISTORY`);
+    console.log(` SCRAPING RECORD REVISION HISTORY`);
     console.log(`${"=".repeat(70)}\n`);
 
     const revisions = await service.scrapeSingleRecord(recordId, baseId);
@@ -774,9 +691,8 @@ export const syncSingleRecord = async (
       `✅ Scraped ${revisions.length} revision items for record ${recordId}\n`
     );
 
-    // Step 2: Clean up any duplicates that might have been created during scraping
     console.log(`\n${"=".repeat(70)}`);
-    console.log(` STEP 2: CLEANING UP DUPLICATE REVISIONS`);
+    console.log(` CLEANING UP DUPLICATE REVISIONS`);
     console.log(`${"=".repeat(70)}\n`);
 
     // Remove duplicates for this specific record only
@@ -790,7 +706,6 @@ export const syncSingleRecord = async (
     console.log(` Duplicates Removed: ${cleanupStats.duplicatesRemoved}`);
     console.log(`${"=".repeat(70)}\n`);
 
-    // Step 3: Fetch final cleaned revisions
     const finalRevisions = await RevisionHistory.find({
       issueId: recordId,
       userId: userId,

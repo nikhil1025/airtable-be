@@ -4,19 +4,6 @@ import { AirtableConnection, RevisionHistory, Ticket } from "../models";
 import { decrypt, isEncrypted } from "../utils/encryption";
 import { logger } from "../utils/errors";
 
-/**
- * REVISION HISTORY FETCH SERVICE (AXIOS-BASED BATCH PROCESSING)
- *
- * This service fetches revision histories for all tickets of a user using worker threads
- * with axios HTTP requests (NO PUPPETEER), stores them in MongoDB, and returns the results.
- *
- * PERFORMANCE OPTIMIZATIONS:
- * - Divides tasks evenly across worker threads
- * - Each worker connects to MongoDB ONCE and reuses the connection
- * - Batch bulkWrite operations per worker (not per record)
- * - Pure axios HTTP requests for maximum speed
- */
-
 interface TaskItem {
   recordId: string;
   baseId: string;
@@ -61,46 +48,39 @@ export class RevisionHistoryFetchService {
     });
   }
 
-  /**
-   * Fetch and store revision histories for all tickets of the user
-   * Uses batch processing with worker threads
-   */
   async fetchAndStoreRevisionHistories(): Promise<any[]> {
     const startTime = Date.now();
 
     try {
       console.log(`\n${"=".repeat(70)}`);
-      console.log(`⚡ REVISION HISTORY FETCH SERVICE (AXIOS-BASED)`);
+      console.log(`LIGHTNING REVISION HISTORY FETCH SERVICE (AXIOS-BASED)`);
       console.log(`${"=".repeat(70)}`);
-      console.log(`👤 User ID: ${this.userId}`);
-      console.log(`⚙️  Workers: ${this.maxWorkers}`);
-      console.log(`🚫 NO PUPPETEER - Pure axios HTTP requests`);
-      console.log(`🔄 Batch processing with MongoDB connection reuse`);
-      console.log(`⏰ Started: ${new Date().toISOString()}`);
+      console.log(` User ID: ${this.userId}`);
+      console.log(`SETTINGS  Workers: ${this.maxWorkers}`);
+      console.log(`NO NO PUPPETEER - Pure axios HTTP requests`);
+      console.log(`REFRESH Batch processing with MongoDB connection reuse`);
+      console.log(`CLOCK Started: ${new Date().toISOString()}`);
       console.log(`${"=".repeat(70)}\n`);
 
-      // Step 1: Clear existing revision histories for this user
-      console.log("🗑️  Step 1: Clearing existing revision histories...");
+      console.log("Clearing existing revision histories...");
       const deleteResult = await RevisionHistory.deleteMany({
         userId: this.userId,
       });
-      console.log(`✅ Cleared ${deleteResult.deletedCount} existing records\n`);
+      console.log(`OK Cleared ${deleteResult.deletedCount} existing records\n`);
 
-      // Step 2: Fetch tickets
-      console.log("📊 Step 2: Loading tickets from MongoDB...");
+      console.log("Loading tickets from MongoDB...");
       const tickets = await Ticket.find({ userId: this.userId }).select(
         "airtableRecordId baseId tableId"
       );
 
       if (tickets.length === 0) {
-        console.log("ℹ️  No tickets found for user");
+        console.log("INFO  No tickets found for user");
         return [];
       }
 
-      console.log(`✅ Found ${tickets.length} tickets\n`);
+      console.log(`OK Found ${tickets.length} tickets\n`);
 
-      // Step 3: Get cookies
-      console.log("🔑 Step 3: Loading authentication cookies...");
+      console.log("Loading authentication cookies...");
       const connection = await AirtableConnection.findOne({
         userId: this.userId,
       });
@@ -111,14 +91,13 @@ export class RevisionHistoryFetchService {
 
       let cookiesString = connection.cookies;
       if (isEncrypted(cookiesString)) {
-        console.log("🔓 Decrypting cookies...");
+        console.log("UNLOCK Decrypting cookies...");
         cookiesString = decrypt(cookiesString);
       }
 
-      console.log(`✅ Cookies loaded and ready\n`);
+      console.log(`OK Cookies loaded and ready\n`);
 
-      // Step 4: Build task list
-      console.log("📝 Step 4: Building task list...");
+      console.log("Building task list...");
       const allTasks: TaskItem[] = tickets.map((ticket) => ({
         recordId: ticket.airtableRecordId,
         baseId: ticket.baseId,
@@ -127,16 +106,14 @@ export class RevisionHistoryFetchService {
         userId: this.userId,
       }));
 
-      console.log(`✅ ${allTasks.length} tasks ready\n`);
+      console.log(`OK ${allTasks.length} tasks ready\n`);
 
-      // Step 5: Process with workers
       console.log(
-        `⚡ Step 5: Dividing ${allTasks.length} tasks across ${this.maxWorkers} workers...\n`
+        `Dividing ${allTasks.length} tasks across ${this.maxWorkers} workers...\n`
       );
 
       const results = await this.processBatches(allTasks);
 
-      // Step 6: Summary
       const endTime = Date.now();
       const duration = ((endTime - startTime) / 1000).toFixed(2);
       const successful = results.filter((r) => r.success).length;
@@ -147,23 +124,23 @@ export class RevisionHistoryFetchService {
       );
 
       console.log(`\n${"=".repeat(70)}`);
-      console.log(`🎉 FETCH COMPLETED`);
+      console.log(`PARTY FETCH COMPLETED`);
       console.log(`${"=".repeat(70)}`);
-      console.log(`⏱️  Duration: ${duration}s`);
-      console.log(`📊 Total Records: ${results.length}`);
-      console.log(`✅ Successful: ${successful}`);
-      console.log(`❌ Failed: ${failed}`);
-      console.log(`📝 Total Revisions: ${totalRevisions}`);
-      console.log(`⚡ Workers: ${this.maxWorkers}`);
+      console.log(`TIMER  Duration: ${duration}s`);
+      console.log(`CHART Total Records: ${results.length}`);
+      console.log(`OK Successful: ${successful}`);
+      console.log(`X Failed: ${failed}`);
+      console.log(`MEMO Total Revisions: ${totalRevisions}`);
+      console.log(`LIGHTNING Workers: ${this.maxWorkers}`);
       console.log(
-        `🔄 MongoDB Connections: ${this.maxWorkers} (one per worker, reused)`
+        `REFRESH MongoDB Connections: ${this.maxWorkers} (one per worker, reused)`
       );
       console.log(
-        `🚀 Speed: ${(results.length / parseFloat(duration)).toFixed(
+        `ROCKET Speed: ${(results.length / parseFloat(duration)).toFixed(
           2
         )} records/sec`
       );
-      console.log(`⏰ Completed: ${new Date().toISOString()}`);
+      console.log(`CLOCK Completed: ${new Date().toISOString()}`);
       console.log(`${"=".repeat(70)}\n`);
 
       // Fetch all stored revisions for return
@@ -181,9 +158,6 @@ export class RevisionHistoryFetchService {
     }
   }
 
-  /**
-   * Process tasks in batches using worker threads
-   */
   private async processBatches(allTasks: TaskItem[]): Promise<WorkerResult[]> {
     // Divide tasks evenly across workers
     const batches: TaskItem[][] = [];
@@ -200,7 +174,7 @@ export class RevisionHistoryFetchService {
       }
     }
 
-    console.log(`\n🔥 Starting ${batches.length} workers...\n`);
+    console.log(`\nFIRE Starting ${batches.length} workers...\n`);
 
     // Spawn all workers in parallel
     const results: WorkerResult[] = [];
@@ -209,7 +183,7 @@ export class RevisionHistoryFetchService {
     const workerPromises = batches.map((batch, index) =>
       this.spawnBatchWorker(index + 1, batch, (recordId, revisionsFound) => {
         processedCount++;
-        const status = revisionsFound > 0 ? "✅" : "⚪";
+        const status = revisionsFound > 0 ? "OK" : "CIRCLE";
         console.log(
           `${status} [${processedCount}/${allTasks.length}] W${
             index + 1
@@ -228,9 +202,6 @@ export class RevisionHistoryFetchService {
     return results;
   }
 
-  /**
-   * Spawn a single batch worker
-   */
   private async spawnBatchWorker(
     workerId: number,
     batch: TaskItem[],
@@ -260,7 +231,7 @@ export class RevisionHistoryFetchService {
           } else if (message.type === "complete") {
             results = message.results;
             console.log(
-              `\n✨ Worker ${message.workerId} DONE: ${message.totalRevisions} total revisions\n`
+              `\nSPARKLE Worker ${message.workerId} DONE: ${message.totalRevisions} total revisions\n`
             );
             resolve(results);
           } else if (message.type === "error") {
@@ -283,10 +254,6 @@ export class RevisionHistoryFetchService {
     });
   }
 
-  /**
-   * Scrape revision history for a single record
-   * (Backward compatibility method)
-   */
   async scrapeSingleRecord(recordId: string, baseId: string): Promise<any[]> {
     try {
       console.log(
@@ -321,7 +288,7 @@ export class RevisionHistoryFetchService {
 
       if (results.length > 0 && results[0].success) {
         console.log(
-          `✅ Found ${results[0].revisionsFound} revisions for record ${recordId}`
+          `OK Found ${results[0].revisionsFound} revisions for record ${recordId}`
         );
 
         // Fetch stored revisions
@@ -340,11 +307,6 @@ export class RevisionHistoryFetchService {
     }
   }
 
-  /**
-   * Clean up duplicate revision history records
-   * Removes duplicates based on matching newValue, oldValue, and createdDate
-   * Keeps only one record when duplicates are found
-   */
   async cleanupDuplicates(userId?: string): Promise<{
     totalChecked: number;
     duplicatesRemoved: number;
@@ -353,25 +315,23 @@ export class RevisionHistoryFetchService {
     try {
       const targetUserId = userId || this.userId;
       console.log(
-        `\n${"=".repeat(70)}\n🧹 DUPLICATE CLEANUP STARTED\n${"=".repeat(70)}`
+        `\n${"=".repeat(70)}\nBROOM DUPLICATE CLEANUP STARTED\n${"=".repeat(70)}`
       );
-      console.log(`👤 User ID: ${targetUserId || "ALL USERS"}\n`);
+      console.log(` User ID: ${targetUserId || "ALL USERS"}\n`);
 
-      // Step 1: Find all revision histories for the user (or all if undefined)
-      console.log("📊 Step 1: Loading all revision histories...");
+      console.log("Loading all revision histories...");
       const query = targetUserId ? { userId: targetUserId } : {};
       const allRevisions = await RevisionHistory.find(query).lean();
 
-      console.log(`✅ Found ${allRevisions.length} total records\n`);
+      console.log(`OK Found ${allRevisions.length} total records\n`);
 
       if (allRevisions.length === 0) {
-        console.log("⚠️  No records to check");
+        console.log("WARNING  No records to check");
         return { totalChecked: 0, duplicatesRemoved: 0, groupsProcessed: 0 };
       }
 
-      // Step 2: Group by newValue, oldValue, and createdDate
       console.log(
-        "🔍 Step 2: Grouping records by newValue, oldValue, and createdDate..."
+        "Grouping records by newValue, oldValue, and createdDate..."
       );
 
       const groupMap = new Map<string, any[]>();
@@ -387,10 +347,9 @@ export class RevisionHistoryFetchService {
         groupMap.get(key)!.push(revision);
       }
 
-      console.log(`✅ Created ${groupMap.size} unique groups\n`);
+      console.log(`OK Created ${groupMap.size} unique groups\n`);
 
-      // Step 3: Find and remove duplicates
-      console.log("🗑️  Step 3: Identifying and removing duplicates...");
+      console.log("Identifying and removing duplicates...");
 
       let duplicatesRemoved = 0;
       let groupsWithDuplicates = 0;
@@ -406,7 +365,7 @@ export class RevisionHistoryFetchService {
           idsToDelete.push(...deleteIds);
 
           console.log(
-            `   ⚠️  Found ${records.length} duplicates (keeping 1, removing ${toDelete.length})`
+            `   WARNING  Found ${records.length} duplicates (keeping 1, removing ${toDelete.length})`
           );
           console.log(`      newValue: "${records[0].newValue}"`);
           console.log(`      oldValue: "${records[0].oldValue}"`);
@@ -420,29 +379,27 @@ export class RevisionHistoryFetchService {
         }
       }
 
-      // Step 4: Perform bulk delete
       if (idsToDelete.length > 0) {
         console.log(
-          `\n🔥 Step 4: Deleting ${idsToDelete.length} duplicate records...`
+          `\nDeleting ${idsToDelete.length} duplicate records...`
         );
 
         const deleteResult = await RevisionHistory.deleteMany({
           _id: { $in: idsToDelete },
         });
 
-        console.log(`✅ Deleted ${deleteResult.deletedCount} records\n`);
+        console.log(`OK Deleted ${deleteResult.deletedCount} records\n`);
       } else {
-        console.log("\n✨ No duplicates found! Database is clean.\n");
+        console.log("\nSPARKLE No duplicates found! Database is clean.\n");
       }
 
-      // Step 5: Summary
       console.log(`${"=".repeat(70)}`);
-      console.log(`🎉 CLEANUP COMPLETE`);
+      console.log(`PARTY CLEANUP COMPLETE`);
       console.log(`${"=".repeat(70)}`);
-      console.log(`📊 Total Records Checked: ${allRevisions.length}`);
-      console.log(`🔍 Unique Groups: ${groupMap.size}`);
-      console.log(`⚠️  Groups with Duplicates: ${groupsWithDuplicates}`);
-      console.log(`🗑️  Duplicates Removed: ${duplicatesRemoved}`);
+      console.log(`CHART Total Records Checked: ${allRevisions.length}`);
+      console.log(`MAG Unique Groups: ${groupMap.size}`);
+      console.log(`WARNING  Groups with Duplicates: ${groupsWithDuplicates}`);
+      console.log(`TRASH  Duplicates Removed: ${duplicatesRemoved}`);
       console.log(`${"=".repeat(70)}\n`);
 
       return {

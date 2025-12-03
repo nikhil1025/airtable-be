@@ -6,9 +6,6 @@ import { sendErrorResponse, sendSuccessResponse } from "../utils/errors";
 
 const router = Router();
 
-/**
- * Get basic stats without authentication (for demo)
- */
 router.get("/stats", async (_req, res) => {
   try {
     // Count all documents in the database
@@ -35,9 +32,6 @@ router.get("/stats", async (_req, res) => {
   }
 });
 
-/**
- * Get all projects (for demo without user filtering)
- */
 router.get("/projects", async (_req, res) => {
   try {
     const projects = await Project.find()
@@ -65,9 +59,6 @@ router.get("/projects", async (_req, res) => {
   }
 });
 
-/**
- * Get tables for a specific project
- */
 router.get("/tables/:projectId", async (req, res) => {
   try {
     const { projectId } = req.params;
@@ -102,9 +93,6 @@ router.get("/tables/:projectId", async (req, res) => {
   }
 });
 
-/**
- * Get tickets for a specific table
- */
 router.get("/tickets/:tableId", async (req, res) => {
   try {
     const { tableId } = req.params;

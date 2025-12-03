@@ -5,7 +5,7 @@ export interface IWorkspaceUser extends Document {
   airtableUserId: string; // The workspace user's ID from Airtable
   email: string;
   name?: string;
-  state?: string; // e.g., "active", "pending", etc.
+  state?: string;
   createdTime?: string;
   lastActivityTime?: string;
   invitedToAirtableByUserId?: string;
@@ -63,7 +63,6 @@ const WorkspaceUserSchema = new Schema<IWorkspaceUser>(
   }
 );
 
-// Compound index for unique user per workspace
 WorkspaceUserSchema.index({ userId: 1, airtableUserId: 1 }, { unique: true });
 
 export const WorkspaceUser = mongoose.model<IWorkspaceUser>(

@@ -2,15 +2,6 @@ import axios from "axios";
 import { AirtableConnection, WorkspaceUser } from "../models";
 import { decrypt, isEncrypted } from "../utils/encryption";
 
-/**
- * USERS FETCH SERVICE
- *
- * This service fetches workspace users using cookie-based authentication
- * and stores them in MongoDB WorkspaceUser collection.
- *
- * Similar pattern to RevisionHistoryFetchService but for workspace users.
- */
-
 interface AirtableWorkspaceUser {
   id: string;
   email: string;
@@ -40,13 +31,10 @@ export class UsersFetchService {
     console.log(`[UsersFetchService] Initialized for user: ${userId}`);
   }
 
-  /**
-   * Fetch and store workspace users
-   */
   async fetchAndStoreWorkspaceUsers(): Promise<AirtableWorkspaceUser[]> {
     try {
       console.log(
-        `[UsersFetchService] [STEP 1] Starting fetch for userId: ${this.userId}`
+        `[UsersFetchService] Starting fetch for userId: ${this.userId}`
       );
 
       // Fetch cookies and access token from DB
@@ -55,13 +43,13 @@ export class UsersFetchService {
         throw new Error("Could not fetch credentials");
       }
 
-      console.log(`[UsersFetchService] [STEP 2] Fetching workspace users...`);
+      console.log(`[UsersFetchService] Fetching workspace users...`);
 
       // Fetch users from Airtable
       const users = await this.fetchUsersFromAirtable();
 
       console.log(
-        `[UsersFetchService] [STEP 3] Storing ${users.length} users in database...`
+        `[UsersFetchService] Storing ${users.length} users in database...`
       );
 
       // Store users in MongoDB
@@ -78,9 +66,6 @@ export class UsersFetchService {
     }
   }
 
-  /**
-   * Fetch cookies and access token from MongoDB
-   */
   private async fetchCredentialsFromDB(): Promise<boolean> {
     try {
       console.log(
@@ -133,13 +118,7 @@ export class UsersFetchService {
     }
   }
 
-  /**
-   * Get common headers for Airtable API requests
-   */
   private getAirtableHeaders(workspaceId?: string): Record<string, string> {
-    // CRITICAL: Convert cookies from JSON array to HTTP Cookie header format
-    // Cookies are stored as JSON string: "[{name: 'x', value: 'y'}, ...]"
-    // But HTTP Cookie header needs: "x=y; a=b; ..."
     let cookieHeader = "";
     if (this.cookies) {
       try {
@@ -191,9 +170,6 @@ export class UsersFetchService {
     return headers;
   }
 
-  /**
-   * Discover all workspaces the user has access to
-   */
   private async discoverWorkspaces(): Promise<string[]> {
     console.log("[UsersFetchService] Discovering workspaces...");
 
@@ -245,9 +221,6 @@ export class UsersFetchService {
     return workspaceIds;
   }
 
-  /**
-   * Fetch users for a specific workspace
-   */
   private async fetchWorkspaceUsers(
     workspaceId: string
   ): Promise<WorkspaceResult> {
@@ -329,9 +302,6 @@ export class UsersFetchService {
     }
   }
 
-  /**
-   * Fetch users from all workspaces (combines all workspace users)
-   */
   private async fetchUsersFromAirtable(): Promise<AirtableWorkspaceUser[]> {
     try {
       const allUsers: AirtableWorkspaceUser[] = [];
@@ -367,9 +337,6 @@ export class UsersFetchService {
     }
   }
 
-  /**
-   * Store users in MongoDB
-   */
   private async storeUsersInDB(users: AirtableWorkspaceUser[]): Promise<void> {
     try {
       if (users.length === 0) {
@@ -421,9 +388,6 @@ export class UsersFetchService {
     }
   }
 
-  /**
-   * PUBLIC: Get all workspaces for the user
-   */
   async getWorkspaces(): Promise<
     { workspaceId: string; workspaceName: string }[]
   > {
@@ -454,9 +418,6 @@ export class UsersFetchService {
     }
   }
 
-  /**
-   * PUBLIC: Fetch users from a specific workspace
-   */
   async fetchUsersForWorkspace(workspaceId: string): Promise<WorkspaceResult> {
     try {
       // Fetch credentials first
@@ -476,9 +437,6 @@ export class UsersFetchService {
     }
   }
 
-  /**
-   * PUBLIC: Fetch users from all workspaces and return detailed results
-   */
   async fetchUsersFromAllWorkspaces(): Promise<WorkspaceResult[]> {
     try {
       // Fetch credentials first

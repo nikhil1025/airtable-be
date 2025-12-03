@@ -6,9 +6,6 @@ const IV_LENGTH = 16;
 const SALT_LENGTH = 64;
 const KEY_LENGTH = 32;
 
-/**
- * Derives a key from the encryption key using PBKDF2
- */
 function deriveKey(salt: Buffer): Buffer {
   return crypto.pbkdf2Sync(
     config.encryption.key,
@@ -19,11 +16,6 @@ function deriveKey(salt: Buffer): Buffer {
   );
 }
 
-/**
- * Encrypts text using AES-256-GCM
- * @param text - The text to encrypt
- * @returns Encrypted text in format: salt:iv:tag:encryptedData (all hex encoded)
- */
 export function encrypt(text: string): string {
   if (!text) {
     throw new Error("Text to encrypt cannot be empty");
@@ -56,11 +48,6 @@ export function encrypt(text: string): string {
   )}:${encrypted}`;
 }
 
-/**
- * Decrypts text encrypted with the encrypt function
- * @param encryptedText - The encrypted text in format: salt:iv:tag:encryptedData
- * @returns Decrypted text
- */
 export function decrypt(encryptedText: string): string {
   if (!encryptedText) {
     throw new Error("Encrypted text cannot be empty");
@@ -103,9 +90,6 @@ export function decrypt(encryptedText: string): string {
   }
 }
 
-/**
- * Checks if text is encrypted
- */
 export function isEncrypted(text: string): boolean {
   if (!text) return false;
   const parts = text.split(":");

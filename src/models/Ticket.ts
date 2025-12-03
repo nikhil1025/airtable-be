@@ -45,7 +45,6 @@ const TicketSchema: Schema = new Schema(
   }
 );
 
-// Compound indexes for efficient querying
 TicketSchema.index({ userId: 1, baseId: 1 });
 TicketSchema.index({ userId: 1, tableId: 1 });
 TicketSchema.index({ userId: 1, baseId: 1, tableId: 1 });

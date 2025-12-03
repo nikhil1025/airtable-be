@@ -1,17 +1,5 @@
 import { RevisionHistory } from "../models";
 
-/**
- * Remove duplicate revision history entries
- * Keeps one entry and removes duplicates based on:
- * - issueId (record ID)
- * - newValue
- * - oldValue
- * - createdDate
- *
- * @param userId - Optional user ID to filter revisions (if not provided, cleans all)
- * @param recordId - Optional record ID to filter revisions for a specific record
- * @returns Object with duplicate removal statistics
- */
 export async function removeDuplicateRevisions(
   userId?: string,
   recordId?: string

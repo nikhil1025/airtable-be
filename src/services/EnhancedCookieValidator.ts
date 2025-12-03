@@ -2,18 +2,7 @@ import axios from "axios";
 import { AirtableConnection } from "../models";
 import { logger } from "../utils/errors";
 
-/**
- * ENHANCED COOKIE VALIDATION SERVICE
- * Properly validates and manages all authentication data:
- * - HTTP cookies
- * - localStorage data
- * - Session data
- * - All auth tokens
- */
 export class EnhancedCookieValidator {
-  /**
-   * Comprehensive cookie validation that checks all auth data
-   */
   static async validateAllAuthenticationData(userId: string): Promise<{
     isValid: boolean;
     cookies: string;
@@ -102,9 +91,6 @@ export class EnhancedCookieValidator {
     }
   }
 
-  /**
-   * Perform multiple authentication tests
-   */
   private static async performMultipleAuthTests(cookies: string): Promise<{
     allPassed: boolean;
     failures: string[];
@@ -175,9 +161,6 @@ export class EnhancedCookieValidator {
     };
   }
 
-  /**
-   * Store comprehensive authentication data
-   */
   static async storeCompleteAuthData(
     userId: string,
     cookies: string,
@@ -221,9 +204,6 @@ export class EnhancedCookieValidator {
     }
   }
 
-  /**
-   * Apply all authentication data to request headers
-   */
   static buildCompleteAuthHeaders(
     cookies: string,
     localStorage: any,

@@ -2,17 +2,11 @@ import * as cheerio from "cheerio";
 import { RevisionChange } from "../types";
 import { logger } from "./errors";
 
-/**
- * Parses HTML response from /readRowActivitiesAndComments endpoint
- * and extracts Status and Assignee changes
- */
 export function parseRevisionHistoryHTML(html: string): RevisionChange[] {
   try {
     const $ = cheerio.load(html);
     const revisions: RevisionChange[] = [];
 
-    // Find all activity items in the HTML
-    // The structure may vary, so we'll look for common patterns
     $(".activity-item, .revision-item, [data-activity-id]").each(
       (index, element) => {
         try {
@@ -104,9 +98,6 @@ export function parseRevisionHistoryHTML(html: string): RevisionChange[] {
   }
 }
 
-/**
- * Filters revisions to only include Status and Assignee changes
- */
 export function filterStatusAndAssigneeChanges(
   revisions: RevisionChange[]
 ): RevisionChange[] {
@@ -117,9 +108,6 @@ export function filterStatusAndAssigneeChanges(
   });
 }
 
-/**
- * Alternative parser for JSON-like structure in HTML
- */
 export function parseRevisionJSON(jsonData: unknown): RevisionChange[] {
   try {
     const data = jsonData as {

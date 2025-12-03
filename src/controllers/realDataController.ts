@@ -11,10 +11,6 @@ import {
   sendSuccessResponse,
 } from "../utils/errors";
 
-/**
- * GET /api/airtable/data/stats
- * Get real data stats from database (not demo)
- */
 export async function getRealStats(
   req: Request,
   res: Response
@@ -82,10 +78,6 @@ export async function getRealStats(
   }
 }
 
-/**
- * POST /api/airtable/data/projects
- * Get real projects from database with OAuth tokens (not demo)
- */
 export async function getRealProjects(
   req: Request,
   res: Response
@@ -151,10 +143,6 @@ export async function getRealProjects(
   }
 }
 
-/**
- * POST /api/airtable/data/tables/:projectId
- * Get real tables for a project from database with OAuth tokens (not demo)
- */
 export async function getRealTables(
   req: Request,
   res: Response
@@ -225,10 +213,6 @@ export async function getRealTables(
   }
 }
 
-/**
- * POST /api/airtable/data/tickets/:tableId
- * Get real tickets for a table from database with OAuth tokens (not demo)
- */
 export async function getRealTickets(
   req: Request,
   res: Response
@@ -299,10 +283,6 @@ export async function getRealTickets(
   }
 }
 
-/**
- * POST /api/airtable/data/sync-fresh
- * Refresh data display without fetching from Airtable
- */
 export async function syncFresh(
   req: Request,
   res: Response

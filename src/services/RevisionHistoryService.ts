@@ -16,11 +16,6 @@ import {
 import CookieScraperService from "./CookieScraperService";
 
 export class RevisionHistoryService {
-  /**
-   * Fetches revision history for a single ticket using Puppeteer web scraping
-   * NOTE: Airtable does NOT have a public API for revision history
-   * This requires scraping the web interface directly
-   */
   async fetchRevisionHistory(
     userId: string,
     baseId: string,
@@ -49,7 +44,7 @@ export class RevisionHistoryService {
 
       // Get cookies for authentication
       console.log(
-        `[RevisionHistoryService]  Step 1: Fetching cookies from DB...`
+        `[RevisionHistoryService]Fetching cookies from DB...`
       );
       const cookiesData = await CookieScraperService.getCookiesFromDB(userId);
       if (!cookiesData || cookiesData.length === 0) {
@@ -68,7 +63,7 @@ export class RevisionHistoryService {
 
       // Get localStorage data
       console.log(
-        `[RevisionHistoryService]  Step 2: Fetching localStorage from DB...`
+        `[RevisionHistoryService]Fetching localStorage from DB...`
       );
       const localStorageData = await CookieScraperService.getLocalStorageFromDB(
         userId
@@ -85,13 +80,13 @@ export class RevisionHistoryService {
 
       // Use Worker Pool to scrape revision history
       console.log(
-        `[RevisionHistoryService]  Step 3: Initializing worker pool...`
+        `[RevisionHistoryService]Initializing worker pool...`
       );
       const workerPool = CookieScraperService.getWorkerPoolInstance();
       console.log(`[RevisionHistoryService]  Worker pool ready`);
 
       console.log(
-        `[RevisionHistoryService]  Step 4: Executing scraping task...`
+        `[RevisionHistoryService]Executing scraping task...`
       );
       const result = await workerPool.execute<{
         success: boolean;
@@ -125,7 +120,7 @@ export class RevisionHistoryService {
       console.log(`[RevisionHistoryService]  Scraping completed successfully`);
 
       // Parse the HTML to extract revision changes
-      console.log(`[RevisionHistoryService] [STEP 5] Parsing HTML/DOM data...`);
+      console.log(`[RevisionHistoryService] Parsing HTML/DOM data...`);
       let parsedRevisions: RevisionChange[] = [];
 
       if (result.html) {
@@ -217,10 +212,6 @@ export class RevisionHistoryService {
     }
   }
 
-  /**
-   * DEPRECATED: Old method that tried to use non-existent endpoint
-   * Kept for reference but not used
-   */
   async fetchRevisionHistoryViaEndpoint(
     userId: string,
     baseId: string,
@@ -247,9 +238,6 @@ export class RevisionHistoryService {
         )
         .join("; ");
 
-      // Make request to /readRowActivitiesAndComments endpoint
-      // WARNING: This endpoint does NOT exist - will always return 404
-      // This is kept for reference only
       const url = `${config.airtable.webUrl}/readRowActivitiesAndComments`;
 
       logger.info("Making revision history request", {
@@ -336,10 +324,6 @@ export class RevisionHistoryService {
     }
   }
 
-  /**
-   * Syncs revision history for all tickets (with batch processing)
-   * First fetches record IDs from tickets DB, then processes revision history in background
-   */
   async syncRevisionHistory(
     userId: string,
     baseId?: string,
@@ -371,9 +355,8 @@ export class RevisionHistoryService {
       if (baseId) query.baseId = baseId;
       if (tableId) query.tableId = tableId;
 
-      // Step 1: Fetch all tickets with record IDs from database
       console.log(
-        `[RevisionHistoryService]  Step 1: Fetching tickets from DB...`
+        `[RevisionHistoryService]Fetching tickets from DB...`
       );
       const tickets = await Ticket.find(query)
         .select("airtableRecordId baseId tableId rowId fields")
@@ -401,7 +384,6 @@ export class RevisionHistoryService {
         sampleRecordIds: tickets.slice(0, 3).map((t) => t.airtableRecordId),
       });
 
-      // Step 2: Filter tickets that don't already have revision history
       const recordIdsToProcess = [];
       for (const ticket of tickets) {
         const existingRevisions = await RevisionHistory.countDocuments({
@@ -431,7 +413,6 @@ export class RevisionHistoryService {
         };
       }
 
-      // Step 3: Process revision history extraction in background batches
       const batchSize = 25; // Smaller batches for revision history scraping
       const batches = chunkArray(recordIdsToProcess, batchSize);
 
@@ -441,7 +422,7 @@ export class RevisionHistoryService {
       const errors: Array<{ recordId: string; error: string }> = [];
 
       console.log(
-        `[RevisionHistoryService] [STEP 3] Starting batch processing`
+        `[RevisionHistoryService] Starting batch processing`
       );
       console.log(
         `[RevisionHistoryService] [INFO] Total batches: ${batches.length}, Batch size: ${batchSize}`
@@ -524,10 +505,6 @@ export class RevisionHistoryService {
     }
   }
 
-  /**
-   * Process a batch of tickets for revision history extraction in background
-   * Optimized for scraping operations with proper concurrency control and error resilience
-   */
   async processRevisionHistoryBatch(
     tickets: Array<{
       airtableRecordId: string;
@@ -548,8 +525,7 @@ export class RevisionHistoryService {
       errors: [] as Array<{ id: string; error: string }>,
     };
 
-    // Use lower concurrency for revision history scraping to avoid overwhelming the server
-    const concurrency = 3; // Conservative approach for web scraping
+    const concurrency = 3;
 
     console.log(`[RevisionHistoryService]   Concurrency level: ${concurrency}`);
     logger.info("Starting background revision history batch processing", {
@@ -674,10 +650,6 @@ export class RevisionHistoryService {
     return results;
   }
 
-  /**
-   * Processes a batch of tickets for revision history (legacy method)
-   * Uses parallel processing with concurrency control
-   */
   async processTicketBatch(
     tickets: Array<{
       airtableRecordId: string;
@@ -790,9 +762,6 @@ export class RevisionHistoryService {
     return results;
   }
 
-  /**
-   * Save revisions to MongoDB
-   */
   private async saveRevisions(
     revisions: RevisionChange[],
     userId: string
@@ -858,9 +827,6 @@ export class RevisionHistoryService {
     return savedCount;
   }
 
-  /**
-   * Helper: Extract column type from revision text
-   */
   private extractColumnType(text: string): string {
     const lowerText = text.toLowerCase();
 
@@ -878,11 +844,7 @@ export class RevisionHistoryService {
     return "Activity";
   }
 
-  /**
-   * Helper: Extract old value from revision text
-   */
   private extractOldValue(text: string): string {
-    // Look for patterns like "changed from X to Y" or "X → Y"
     const patterns = [
       /from\s+["']?([^"'→]+)["']?\s+to/i,
       /["']?([^"'→]+)["']?\s*→/,
@@ -899,11 +861,7 @@ export class RevisionHistoryService {
     return "";
   }
 
-  /**
-   * Helper: Extract new value from revision text
-   */
   private extractNewValue(text: string): string {
-    // Look for patterns like "changed from X to Y" or "X → Y"
     const patterns = [
       /to\s+["']?([^"']+)["']?$/i,
       /→\s*["']?([^"']+)["']?$/,
@@ -920,9 +878,6 @@ export class RevisionHistoryService {
     return "";
   }
 
-  /**
-   * Gets stored revision history for a ticket
-   */
   async getRevisionHistoryForTicket(
     ticketId: string,
     userId: string
@@ -955,9 +910,6 @@ export class RevisionHistoryService {
     }
   }
 
-  /**
-   * Checks if cookies are valid before sync
-   */
   async ensureValidCookies(userId: string): Promise<boolean> {
     try {
       const isValid = await CookieScraperService.validateCookies(userId);
@@ -977,10 +929,6 @@ export class RevisionHistoryService {
     }
   }
 
-  /**
-   * NEW: Fetches revision history using the working API endpoint
-   * Uses the correct format: /v0.3/row/{recordId}/readRowActivitiesAndComments
-   */
   async fetchRevisionHistoryAPI(
     userId: string,
     recordId: string
@@ -1117,9 +1065,6 @@ export class RevisionHistoryService {
     }
   }
 
-  /**
-   * Parse API response to extract revision changes
-   */
   private parseAPIResponse(
     response: any,
     recordId: string,
@@ -1244,9 +1189,6 @@ export class RevisionHistoryService {
     return revisions;
   }
 
-  /**
-   * Format field values based on column type
-   */
   private formatFieldValue(value: any, columnType?: string): string {
     if (value === null || value === undefined) {
       return "";
@@ -1292,9 +1234,6 @@ export class RevisionHistoryService {
     }
   }
 
-  /**
-   * Batch sync revision history using API method
-   */
   async syncRevisionHistoryAPI(
     userId: string,
     baseId?: string,

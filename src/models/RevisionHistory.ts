@@ -19,7 +19,6 @@ const RevisionHistorySchema: Schema = new Schema(
     columnType: {
       type: String,
       required: true,
-      // Removed enum restriction to allow all activity types
     },
     oldValue: {
       type: String,
@@ -68,7 +67,6 @@ const RevisionHistorySchema: Schema = new Schema(
   }
 );
 
-// Compound indexes for efficient querying
 RevisionHistorySchema.index({ userId: 1, issueId: 1 });
 RevisionHistorySchema.index({ userId: 1, columnType: 1 });
 RevisionHistorySchema.index({ userId: 1, issueId: 1, createdDate: -1 });

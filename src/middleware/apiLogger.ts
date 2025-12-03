@@ -1,8 +1,5 @@
 import { NextFunction, Request, Response } from "express";
-
-/**
- * Color codes for console output
- */
+// Extracted for logging middleware
 const colors = {
   reset: "\x1b[0m",
   bright: "\x1b[1m",
@@ -29,9 +26,6 @@ const colors = {
   bgWhite: "\x1b[47m",
 };
 
-/**
- * Get color based on HTTP method
- */
 function getMethodColor(method: string): string {
   switch (method.toUpperCase()) {
     case "GET":
@@ -48,9 +42,6 @@ function getMethodColor(method: string): string {
   }
 }
 
-/**
- * Get color based on status code
- */
 function getStatusColor(statusCode: number): string {
   if (statusCode >= 500) return colors.red;
   if (statusCode >= 400) return colors.yellow;
@@ -59,17 +50,11 @@ function getStatusColor(statusCode: number): string {
   return colors.white;
 }
 
-/**
- * Format duration with appropriate unit
- */
 function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms.toFixed(0)}ms`;
   return `${(ms / 1000).toFixed(2)}s`;
 }
 
-/**
- * Sanitize sensitive data from objects
- */
 function sanitizeData(data: unknown): unknown {
   if (!data || typeof data !== "object") return data;
 
@@ -100,10 +85,6 @@ function sanitizeData(data: unknown): unknown {
   return sanitized;
 }
 
-/**
- * API Logger Middleware
- * Logs detailed information about each API request and response
- */
 export function apiLogger(
   req: Request,
   res: Response,
@@ -264,9 +245,6 @@ export function apiLogger(
   next();
 }
 
-/**
- * Simplified logger for health checks and static routes
- */
 export function simpleLogger(
   req: Request,
   res: Response,

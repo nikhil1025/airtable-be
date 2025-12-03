@@ -47,10 +47,6 @@ export class AirtableDataService {
     });
   }
 
-  /**
-   * Creates axios instance with authorization header
-   * Falls back to cookie-based auth if OAuth fails
-   */
   private async getAxiosInstance(userId: string): Promise<AxiosInstance> {
     try {
       // Try OAuth first
@@ -115,10 +111,6 @@ export class AirtableDataService {
     }
   }
 
-  /**
-   * Fetches ALL bases (projects) from Airtable using pagination
-   * Loops through all pages and stores everything in MongoDB
-   */
   async fetchAllBases(userId: string): Promise<BasesResponse> {
     try {
       logger.info("Starting fetchAllBases - will fetch all pages", { userId });
@@ -200,10 +192,6 @@ export class AirtableDataService {
     }
   }
 
-  /**
-   * DEPRECATED: Use fetchAllBases instead
-   * Fetches single page of bases (kept for backward compatibility)
-   */
   async fetchBases(userId: string, _offset?: string): Promise<BasesResponse> {
     logger.warn(
       "fetchBases called - this is deprecated, use fetchAllBases instead"
@@ -211,10 +199,6 @@ export class AirtableDataService {
     return this.fetchAllBases(userId);
   }
 
-  /**
-   * Fetches ALL tables for a specific base from Airtable using pagination
-   * Loops through all pages and stores everything in MongoDB
-   */
   async fetchAllTables(
     userId: string,
     baseId: string
@@ -304,10 +288,6 @@ export class AirtableDataService {
     }
   }
 
-  /**
-   * DEPRECATED: Use fetchAllTables instead
-   * Fetches single page of tables (kept for backward compatibility)
-   */
   async fetchTables(
     userId: string,
     baseId: string,
@@ -319,10 +299,6 @@ export class AirtableDataService {
     return this.fetchAllTables(userId, baseId);
   }
 
-  /**
-   * Fetches ALL records/tickets from a table from Airtable using pagination
-   * Loops through all pages and stores everything in MongoDB
-   */
   async fetchAllTickets(
     userId: string,
     baseId: string,
@@ -431,10 +407,6 @@ export class AirtableDataService {
     }
   }
 
-  /**
-   * DEPRECATED: Use fetchAllTickets instead
-   * Fetches single page of tickets (kept for backward compatibility)
-   */
   async fetchTickets(
     userId: string,
     baseId: string,
@@ -447,13 +419,6 @@ export class AirtableDataService {
     return this.fetchAllTickets(userId, baseId, tableId);
   }
 
-  /**
-   * Fetches ALL workspace users from Airtable API
-   * Uses cookie-based authentication to directly fetch from /workspace/workspaceSettings endpoint
-   * This bypasses OAuth and works with browser-extracted cookies/tokens.
-   *
-   * This method is called separately from sync and requires valid cookies/access token.
-   */
   async fetchAllWorkspaceUsers(
     userId: string
   ): Promise<WorkspaceUsersResponse> {
@@ -615,9 +580,6 @@ export class AirtableDataService {
     }
   }
 
-  /**
-   * Get bases from MongoDB (cached data)
-   */
   async getBasesFromDB(userId: string): Promise<BasesResponse> {
     try {
       logger.info("Fetching bases from MongoDB", { userId });
@@ -646,9 +608,6 @@ export class AirtableDataService {
     }
   }
 
-  /**
-   * Get tables from MongoDB (cached data)
-   */
   async getTablesFromDB(
     userId: string,
     baseId: string
@@ -687,9 +646,6 @@ export class AirtableDataService {
     }
   }
 
-  /**
-   * Get tickets from MongoDB (cached data)
-   */
   async getTicketsFromDB(
     userId: string,
     baseId: string,
@@ -735,9 +691,6 @@ export class AirtableDataService {
     }
   }
 
-  /**
-   * Get workspace users from MongoDB (cached data)
-   */
   async getWorkspaceUsersFromDB(
     userId: string
   ): Promise<WorkspaceUsersResponse> {
@@ -779,10 +732,6 @@ export class AirtableDataService {
     }
   }
 
-  /**
-   * Syncs all data: bases, tables, and tickets (with parallel batch processing)
-   * Fetches ALL pages from Airtable and stores everything in MongoDB
-   */
   async syncAll(userId: string): Promise<SyncAllResponse> {
     try {
       const cpuCount = require("os").cpus().length;
@@ -797,7 +746,6 @@ export class AirtableDataService {
         }
       );
 
-      // Step 0: Clear all existing data for this user (clear-and-replace strategy)
       logger.info("[SYNC] Clearing existing data from collections", { userId });
 
       const deleteResults = await Promise.all([
@@ -817,13 +765,11 @@ export class AirtableDataService {
       let totalTables = 0;
       let totalTickets = 0;
 
-      // Step 1: Sync ALL bases (fetches all pages internally)
-      logger.info("[SYNC] Step 1: Syncing all bases");
+      logger.info("[SYNC]Syncing all bases");
       const basesResponse = await this.fetchAllBases(userId);
       totalBases = basesResponse.bases.length;
       logger.info(`[SYNC] Synced ${totalBases} bases`);
 
-      // Step 2: For each base, sync all its tables
       const bases = await Project.find({ userId });
       logger.info(
         `[SYNC] Processing ${bases.length} bases with ${maxConcurrency} workers`
@@ -833,7 +779,6 @@ export class AirtableDataService {
       const baseConcurrency = Math.min(maxConcurrency, bases.length);
       const tableConcurrency = Math.min(maxConcurrency * 2, 16); // More aggressive for tables
 
-      // Step 4: Process each base in parallel with dynamic concurrency
       const baseResults = await this.batchProcessor.processBatch(
         bases,
         async (base) => {
@@ -857,7 +802,6 @@ export class AirtableDataService {
             baseId: base.airtableBaseId,
           });
 
-          // Step 5: Process each table in parallel with higher concurrency
           const tableResults = await this.batchProcessor.processBatch(
             tables,
             async (table) => {
@@ -930,7 +874,7 @@ export class AirtableDataService {
           bases: totalBases,
           tables: totalTables,
           tickets: totalTickets,
-          users: 0, // Users are synced separately via /api/users/sync
+          users: 0, // Users are synced separately
         },
       };
     } catch (error) {

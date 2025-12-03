@@ -13,13 +13,6 @@ export class BatchProcessor {
     logger.info("BatchProcessor initialized", { poolSize });
   }
 
-  /**
-   * Process an array of items in batches with controlled concurrency
-   * @param items Array of items to process
-   * @param processor Function to process each item
-   * @param options Processing options including concurrency and progress callback
-   * @returns Promise that resolves to array of results
-   */
   async processBatch<T, R>(
     items: T[],
     processor: (item: T) => Promise<R>,
@@ -100,13 +93,6 @@ export class BatchProcessor {
     return results;
   }
 
-  /**
-   * Process items in parallel batches with immediate execution (no chunking)
-   * @param items Array of items to process
-   * @param processor Function to process each item
-   * @param concurrency Maximum concurrent operations
-   * @returns Promise that resolves to array of results
-   */
   async processParallel<T, R>(
     items: T[],
     processor: (item: T) => Promise<R>,
@@ -157,9 +143,6 @@ export class BatchProcessor {
     return results.filter(result => result !== undefined);
   }
 
-  /**
-   * Split array into chunks of specified size
-   */
   private chunkArray<T>(array: T[], chunkSize: number): T[][] {
     const chunks: T[][] = [];
     for (let i = 0; i < array.length; i += chunkSize) {
@@ -168,9 +151,6 @@ export class BatchProcessor {
     return chunks;
   }
 
-  /**
-   * Safely stringify an object for logging
-   */
   private safeStringify(obj: any): string {
     try {
       return JSON.stringify(obj, null, 2);
@@ -179,10 +159,6 @@ export class BatchProcessor {
     }
   }
 }
-
-/**
- * Simple semaphore implementation for controlling concurrency
- */
 class Semaphore {
   private permits: number;
   private waiting: Array<() => void> = [];

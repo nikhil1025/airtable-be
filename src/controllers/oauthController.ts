@@ -15,10 +15,6 @@ import {
   ValidationError,
 } from "../utils/errors";
 
-/**
- * POST /api/airtable/oauth/authorize
- * Initiates OAuth flow
- */
 export async function authorize(
   req: Request<unknown, unknown, AuthorizeRequest>,
   res: Response
@@ -40,10 +36,6 @@ export async function authorize(
   }
 }
 
-/**
- * GET /api/airtable/oauth/callback
- * Handles OAuth callback and redirects to frontend
- */
 export async function callback(
   req: Request<unknown, unknown, unknown, OAuthCallbackQuery>,
   res: Response
@@ -87,10 +79,6 @@ export async function callback(
   }
 }
 
-/**
- * POST /api/airtable/oauth/refresh
- * Refreshes access token
- */
 export async function refreshToken(
   req: Request<unknown, unknown, RefreshTokenRequest>,
   res: Response
@@ -115,10 +103,6 @@ export async function refreshToken(
   }
 }
 
-/**
- * GET /api/airtable/oauth/tokens/:userId
- * Get OAuth tokens for frontend localStorage storage
- */
 export async function getOAuthTokens(
   req: Request<{ userId: string }>,
   res: Response
@@ -158,10 +142,6 @@ export default {
   validate,
 };
 
-/**
- * GET /api/airtable/oauth/validate
- * Validates if user has valid authentication
- */
 export async function validate(req: Request, res: Response): Promise<Response> {
   try {
     const { userId } = req.query;
@@ -181,10 +161,6 @@ export async function validate(req: Request, res: Response): Promise<Response> {
   }
 }
 
-/**
- * POST /api/airtable/auth/validate
- * Simple manual authentication validation
- */
 export async function validateAuth(
   req: Request<
     unknown,

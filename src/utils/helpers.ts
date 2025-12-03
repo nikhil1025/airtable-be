@@ -1,8 +1,5 @@
 import { PaginationMetadata } from "../types";
 
-/**
- * Handles Airtable API pagination metadata
- */
 export function handleAirtablePagination<T extends { offset?: string }>(
   response: T
 ): PaginationMetadata {
@@ -12,9 +9,6 @@ export function handleAirtablePagination<T extends { offset?: string }>(
   };
 }
 
-/**
- * Builds a paginated response object
- */
 export function buildPaginatedResponse<T>(
   data: T,
   offset?: string,
@@ -27,16 +21,10 @@ export function buildPaginatedResponse<T>(
   };
 }
 
-/**
- * Delays execution for a specified time
- */
 export function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/**
- * Retry function with exponential backoff
- */
 export async function retryWithBackoff<T>(
   fn: () => Promise<T>,
   maxRetries: number = 3,
@@ -75,9 +63,6 @@ export async function retryWithBackoff<T>(
   throw lastError;
 }
 
-/**
- * Chunks an array into smaller arrays of specified size
- */
 export function chunkArray<T>(array: T[], chunkSize: number): T[][] {
   const chunks: T[][] = [];
   for (let i = 0; i < array.length; i += chunkSize) {
@@ -86,9 +71,6 @@ export function chunkArray<T>(array: T[], chunkSize: number): T[][] {
   return chunks;
 }
 
-/**
- * Rate limiter class
- */
 export class RateLimiter {
   private queue: Array<() => void> = [];
   private activeCount = 0;

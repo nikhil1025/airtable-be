@@ -1,4 +1,3 @@
-// Airtable API Response Types
 export interface AirtableBase {
   id: string;
   name: string;
@@ -125,7 +124,7 @@ export interface RefreshTokenRequest {
 
 export interface SyncBasesRequest {
   userId: string;
-  forceSync?: boolean; // When true, fetches from Airtable; when false, fetches from MongoDB
+  forceSync?: boolean;
 }
 
 export interface SyncTablesRequest {
@@ -214,7 +213,7 @@ export interface TicketsResponse {
     id: string;
     fields: Record<string, unknown>;
     createdTime: string;
-    rowId?: string; // Made optional to match AirtableRecord
+    rowId?: string;
   }>;
   offset?: string;
   hasMore: boolean;
@@ -266,7 +265,7 @@ export interface RevisionChange {
 export interface RevisionHistoryResponse {
   success: boolean;
   revisions: RevisionChange[];
-  message?: string; // Optional message for errors or warnings
+  message?: string;
 }
 
 export interface SyncRevisionHistoryResponse {
@@ -285,7 +284,7 @@ export interface AirtableConnectionDocument {
   userId: string;
   accessToken: string;
   refreshToken: string;
-  scrapedAccessToken?: string; // Tokens from cookie scraping (separate from OAuth)
+  scrapedAccessToken?: string;
   cookies?: string;
   localStorage?: string;
   cookiesValidUntil?: Date;

@@ -7,7 +7,7 @@ export async function connectDatabase(): Promise<void> {
     await mongoose.connect(config.mongodb.uri);
 
     logger.info("MongoDB connected successfully", {
-      uri: config.mongodb.uri.replace(/\/\/.*@/, "//***@"), // Hide credentials in logs
+      uri: config.mongodb.uri.replace(/\/\/.*@/, "//***@"),
     });
 
     mongoose.connection.on("error", (error) => {

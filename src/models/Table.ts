@@ -40,7 +40,6 @@ const TableSchema: Schema = new Schema(
   }
 );
 
-// Compound indexes
 TableSchema.index({ userId: 1, baseId: 1 });
 TableSchema.index({ userId: 1, airtableTableId: 1 });
 

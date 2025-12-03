@@ -85,16 +85,6 @@ export async function syncUsers(
   }
 }
 
-/**
- * Fetch workspace users for a specific user using cookie-based authentication
- * Similar to revision history fetch pattern
- *
- * GET /api/users/fetch/:userId
- * GET /api/users/fetch/:userId/:workspaceId
- *
- * @param req - Request with userId and optional workspaceId in params
- * @param res - Response with array of all workspace users
- */
 export async function fetchUsersForWorkspace(
   req: Request,
   res: Response
@@ -200,11 +190,6 @@ export async function fetchUsersForWorkspace(
   }
 }
 
-/**
- * Get all workspaces for a user
- *
- * GET /api/users/workspaces/:userId
- */
 export async function getWorkspaces(
   req: Request,
   res: Response
@@ -239,11 +224,6 @@ export async function getWorkspaces(
   }
 }
 
-/**
- * Fetch users from all workspaces with detailed results
- *
- * GET /api/users/fetch-all/:userId
- */
 export async function fetchUsersFromAllWorkspaces(
   req: Request,
   res: Response
