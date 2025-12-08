@@ -6,6 +6,7 @@ import dataRoutes from "./data";
 import demoRoutes from "./demo";
 import mfaAuthRoutes from "./mfaAuth";
 import oauthRoutes from "./oauth";
+import paginationRoutes from "./pagination";
 import revisionHistoryFetchRoutes from "./revisionHistory";
 import syncRoutes from "./sync";
 import usersRoutes from "./users";
@@ -16,6 +17,7 @@ router.use("/auth", authRoutes);
 router.use("/mfa-auth", mfaAuthRoutes); // MFA Authentication
 router.use("/oauth", oauthRoutes);
 router.use("/sync", syncRoutes);
+router.use("/pagination", paginationRoutes);
 router.use("/cookies", cookieRoutes);
 router.use("/data", dataRoutes);
 router.use("/demo", demoRoutes);
