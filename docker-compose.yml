@@ -17,15 +17,6 @@ services:
     environment:
       - PORT=3000
       - NODE_ENV=development
-      - MONGODB_URI=mongodb://localhost:27017/airtable-integration
-      - AIRTABLE_CLIENT_ID=e3470bfa-314f-4b2b-b395-1383064e382d
-      - AIRTABLE_CLIENT_SECRET=656ea267976b677d1f3ade5d80e594155263fa15023328289b7fab1341556b04
-      - AIRTABLE_REDIRECT_URI=http://localhost:3000/api/airtable/oauth/callback
-      - AIRTABLE_BASE_URL=https://api.airtable.com/v0
-      - AIRTABLE_WEB_URL=https://airtable.com
-      - ENCRYPTION_KEY=your_32_character_encryption_key_here_123456
-      - PUPPETEER_HEADLESS=false
-      - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
     restart: unless-stopped
 
 volumes:
