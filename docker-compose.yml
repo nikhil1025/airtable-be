@@ -2,22 +2,18 @@ version: "3.8"
 
 services:
   backend:
-    image: ubuntu:22.04
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: airtable-backend:latest
     container_name: airtable-backend
-    network_mode: host
     working_dir: /app
-    command: >
-      bash -c "
-      export DEBIAN_FRONTEND=noninteractive &&
-      apt-get update &&
-      apt-get install -y curl chromium-browser &&
-      curl -fsSL https://deb.nodesource.com/setup_22.x | bash - &&
-      apt-get install -y nodejs &&
-      npm install &&
-      npm run dev
-      "
+    ports:
+      - "3000:3000"
     volumes:
       - .:/app
+      - mongodb-data:/data/db
+      - /app/node_modules
     environment:
       - PORT=3000
       - NODE_ENV=development
@@ -31,3 +27,6 @@ services:
       - PUPPETEER_HEADLESS=false
       - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
     restart: unless-stopped
+
+volumes:
+  mongodb-data:
